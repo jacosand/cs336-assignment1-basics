@@ -48,3 +48,36 @@ gunzip owt_valid.txt.gz
 cd ..
 ```
 
+## Answers to questions
+
+### `unicode1`
+
+#### (a) What Unicode character does `chr(0)` return?
+
+It returns the null character `'\x00'`.
+
+#### (b) How does this character’s string representation (`__repr__()`) differ from its printed representation?
+
+The string representation of the character by itself is `'\\x00'`.
+
+#### (c) What happens when this character occurs in text?
+
+In text, the character is stored as `\x00`, but in the text's string representation the character is not shown at all.  However, the character is still present as is demonstrated by measuring the length of the string.
+
+### `unicode2`
+
+#### (a) What are some reasons to prefer training our tokenizer on UTF-8 encoded bytes, rather than UTF-16 or UTF-32? It may be helpful to compare the output of these encodings for various input strings.
+
+UTF-16 and UTF-32 encodings are much longer, so less text will fit into a transformer's context window.  In addition, because UTF-32 is fixed-length, it contains a lot of zeros that contain no semantic meaning but take up the transformer's context window.
+
+#### (b) Consider the following (incorrect) function, which is intended to decode a UTF-8 byte string into a Unicode string. Why is this function incorrect? Provide an example of an input byte string that yields incorrect results.
+```
+def decode_utf8_bytes_to_str_wrong(bytestring: bytes):
+    return "".join([bytes([b]).decode("utf-8") for b in bytestring])
+```
+
+The function is incorrect because often multiple bytes correspond to a single Unicode character.  An example is the character `'牛'`, whose byte string is `b'\xe7\x89\x9b'`.  The first byte `b'\xe7'` cannot be decoded on its own.
+
+#### (c) Give a two-byte sequence that does not decode to any Unicode character(s).
+
+The two-byte sequence `b'\xe7\x89` does not decode to any Unicode character(s), because those are the first two bytes of, for example, the character `'牛'`, whose byte string is `b'\xe7\x89\x9b'`.
