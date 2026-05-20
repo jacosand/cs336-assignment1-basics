@@ -1,7 +1,9 @@
 import os
+import regex as re
 
 input_string = "low low low low low lower lower widest widest widest newest newest newest newest newest newest"
 
+PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
 def find_merge_pair(pretoken_freq):
     pair_freq = {}
@@ -35,6 +37,8 @@ def train_bpe(
     special_tokens: list[str],
     ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
 
+    input_text = input_path
+
     n_special_tokens = len(special_tokens)
     n_single_bytes = 256
 
@@ -45,10 +49,9 @@ def train_bpe(
     for i in range(n_single_bytes):
         vocab[n_special_tokens + i] = chr(i).encode('utf-8')
 
-    pretokens = input_path.split()
     pretoken_freq = {}
-    for pretoken in pretokens:
-        pretoken_tuple = tuple(pretoken.encode('utf-8'))
+    for pretoken in re.finditer(PAT, input_text):
+        pretoken_tuple = tuple(pretoken.group().encode('utf-8'))
         pretoken_freq[pretoken_tuple] = pretoken_freq.get(pretoken_tuple, 0) + 1
     
     for i in range(n_special_tokens + n_single_bytes, vocab_size):
