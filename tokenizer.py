@@ -1,7 +1,6 @@
 import os
+from pathlib import Path
 import regex as re
-
-input_string = "low low low low low lower lower widest widest widest newest newest newest newest newest newest"
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
@@ -37,7 +36,8 @@ def train_bpe(
     special_tokens: list[str],
     ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
 
-    input_text = input_path
+    path = Path(input_path)
+    input_text = path.read_text()
 
     n_special_tokens = len(special_tokens)
     n_single_bytes = 256
@@ -65,6 +65,6 @@ def train_bpe(
     return vocab, merges
 
 if __name__ == "__main__":
-    vocab, merges = train_bpe(input_string, 263, ["<|endoftext|>"])
+    vocab, merges = train_bpe('data/TinyStoriesV2-GPT4-valid.txt', 1000, ["<|endoftext|>"])
     print(vocab)
     print(merges)
