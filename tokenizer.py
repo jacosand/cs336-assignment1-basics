@@ -4,13 +4,13 @@ import regex as re
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
-def find_merge_pair(pretoken_freq):
+def find_merge_pair(pretoken_freq, vocab):
     pair_freq = {}
     for pretoken, freq in pretoken_freq.items():
         for pair in zip(pretoken, pretoken[1:]):
             pair_freq[pair] = pair_freq.get(pair, 0) + freq
 
-    return max(pair_freq, key = lambda pair: (pair_freq[pair], pair))
+    return max(pair_freq, key = lambda pair: (pair_freq[pair], tuple(vocab[p] for p in pair)))
 
 
 def merge(pretoken_freq, pair, idx):
@@ -59,7 +59,7 @@ def train_bpe(
             pretoken_freq[pretoken_tuple] = pretoken_freq.get(pretoken_tuple, 0) + 1
     
     for i in range(n_single_bytes, vocab_size - n_special_tokens):
-        int1, int2 = find_merge_pair(pretoken_freq)
+        int1, int2 = find_merge_pair(pretoken_freq, vocab)
         byte1 = vocab[int1]
         byte2 = vocab[int2]
         merges.append((byte1, byte2))
