@@ -17,15 +17,17 @@ def merge(pretoken_freq, pair, idx):
     merged_pretoken_freq = {}
 
     for pretoken, freq in pretoken_freq.items():
+        new_pretoken = []
         i = 0
-        new_pretoken = pretoken
-        while i < len(pretoken) - 1:
-            if (pretoken[i], pretoken[i+1]) == pair:
-                new_pretoken = (*new_pretoken[:i], idx, *new_pretoken[i+2:])
+        while i < len(pretoken):
+            if i < len(pretoken) - 1 and (pretoken[i], pretoken[i+1]) == pair:
+                new_pretoken.append(idx)
                 i += 2
             else:
+                new_pretoken.append(pretoken[i])
                 i += 1
-        merged_pretoken_freq[new_pretoken] = pretoken_freq[pretoken]
+        new_pretoken = tuple(new_pretoken)
+        merged_pretoken_freq[new_pretoken] = merged_pretoken_freq.get(new_pretoken, 0) + freq
 
     return merged_pretoken_freq
 
@@ -44,23 +46,28 @@ def train_bpe(
 
     vocab = {}
     merges = []
-    for i in range(n_special_tokens):
-        vocab[i] = special_tokens[i].encode('utf-8')
     for i in range(n_single_bytes):
-        vocab[n_special_tokens + i] = chr(i).encode('utf-8')
+        vocab[i] = bytes([i])
+
+    split_pattern = "|".join(re.escape(special_token) for special_token in special_tokens)
+    docs = re.split(split_pattern, input_text)
 
     pretoken_freq = {}
-    for pretoken in re.finditer(PAT, input_text):
-        pretoken_tuple = tuple(pretoken.group().encode('utf-8'))
-        pretoken_freq[pretoken_tuple] = pretoken_freq.get(pretoken_tuple, 0) + 1
+    for doc in docs:
+        for pretoken in re.finditer(PAT, doc):
+            pretoken_tuple = tuple(pretoken.group().encode('utf-8'))
+            pretoken_freq[pretoken_tuple] = pretoken_freq.get(pretoken_tuple, 0) + 1
     
-    for i in range(n_special_tokens + n_single_bytes, vocab_size):
+    for i in range(n_single_bytes, vocab_size - n_special_tokens):
         int1, int2 = find_merge_pair(pretoken_freq)
-        byte1 = vocab[int1 + n_special_tokens]
-        byte2 = vocab[int2 + n_special_tokens]
+        byte1 = vocab[int1]
+        byte2 = vocab[int2]
         merges.append((byte1, byte2))
         pretoken_freq = merge(pretoken_freq, (int1, int2), i)
-        vocab[i + n_special_tokens] = byte1 + byte2
+        vocab[i] = byte1 + byte2
+
+    for i in range(n_special_tokens):
+        vocab[vocab_size - n_special_tokens + i] = special_tokens[i].encode('utf-8')
 
     return vocab, merges
 
