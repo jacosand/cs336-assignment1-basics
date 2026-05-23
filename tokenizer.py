@@ -62,9 +62,9 @@ def train_bpe(
         int1, int2 = find_merge_pair(pretoken_freq, vocab)
         byte1 = vocab[int1]
         byte2 = vocab[int2]
+        vocab[i] = byte1 + byte2
         merges.append((byte1, byte2))
         pretoken_freq = merge(pretoken_freq, (int1, int2), i)
-        vocab[i] = byte1 + byte2
 
     for i in range(n_special_tokens):
         vocab[vocab_size - n_special_tokens + i] = special_tokens[i].encode('utf-8')
