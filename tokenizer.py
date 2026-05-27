@@ -157,6 +157,7 @@ def train_bpe(
 
     n_special_tokens = len(special_tokens)
     n_single_bytes = 256
+    num_processes = 4
 
     vocab = {}
     merges = []
@@ -166,7 +167,6 @@ def train_bpe(
     pretoken_tuple_to_freq = defaultdict(int)
 
     with open(input_path, "rb") as f:
-        num_processes = 4
         boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
 
     chunks = []
