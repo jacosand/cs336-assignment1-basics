@@ -102,7 +102,6 @@ def merge(
             else:
                 new_pretoken.append(pretoken[i])
                 i += 1
-        new_pretoken = tuple(new_pretoken)
 
         for old_pair in old_pairs:
             pair_freq[old_pair] -= pretoken_freq[pretoken_id]
@@ -110,7 +109,7 @@ def merge(
             pair_freq[new_pair] += pretoken_freq[pretoken_id]
             pair_locations[new_pair].add(pretoken_id)
 
-        pretoken_tuples[pretoken_id] = new_pretoken
+        pretoken_tuples[pretoken_id] = tuple(new_pretoken)
 
     del pair_freq[merge_pair]
     del pair_locations[merge_pair]
