@@ -1,5 +1,6 @@
 import os
 from typing import BinaryIO
+from collections import defaultdict
 import regex as re
 import multiprocessing
 
@@ -53,39 +54,66 @@ def find_chunk_boundaries(
     return sorted(set(chunk_boundaries))
 
 
-def find_merge_pair(pretoken_freq, vocab):
-    pair_freq = {}
-    for pretoken, freq in pretoken_freq.items():
+def get_pair_stats(pretoken_tuples, pretoken_freq):
+    pair_freq = defaultdict(int)
+    pair_locations = defaultdict(set)
+    for pretoken_id, freq in pretoken_freq.items():
+        pretoken = pretoken_tuples[pretoken_id]
         for pair in zip(pretoken, pretoken[1:]):
-            pair_freq[pair] = pair_freq.get(pair, 0) + freq
+            pair_freq[pair] += freq
+            pair_locations[pair].add(pretoken_id)
+    return pair_freq, pair_locations
 
-    return max(pair_freq, key = lambda pair: (pair_freq[pair], tuple(vocab[p] for p in pair)))
 
+def merge(pair_freq, pair_locations, pretoken_tuples, pretoken_freq, merge_pair, idx):
 
-def merge(pretoken_freq, pair, idx):
-    merged_pretoken_freq = {}
-
-    for pretoken, freq in pretoken_freq.items():
+    for pretoken_id in pair_locations[merge_pair]:
+        
+        pretoken = pretoken_tuples[pretoken_id]
         new_pretoken = []
+        new_pairs = []
+        old_pairs = []
+
         i = 0
         while i < len(pretoken):
-            if i < len(pretoken) - 1 and (pretoken[i], pretoken[i+1]) == pair:
+            if i < len(pretoken) - 1 and (pretoken[i], pretoken[i+1]) == merge_pair:
                 new_pretoken.append(idx)
+                if i != 0:
+                    old_pairs.append((pretoken[i-1], pretoken[i]))
+                    new_pairs.append((pretoken[i-1], idx))
+                if i != len(pretoken) - 2:
+                    old_pairs.append((pretoken[i+1], pretoken[i+2]))
+                    new_pairs.append((idx, pretoken[i+2]))
+                old_pairs.append(merge_pair)
                 i += 2
             else:
                 new_pretoken.append(pretoken[i])
                 i += 1
         new_pretoken = tuple(new_pretoken)
-        merged_pretoken_freq[new_pretoken] = merged_pretoken_freq.get(new_pretoken, 0) + freq
 
-    return merged_pretoken_freq
+        for old_pair in old_pairs:
+            pair_freq[old_pair] -= pretoken_freq[pretoken_id]
+        for new_pair in new_pairs:
+            pair_freq[new_pair] += pretoken_freq[pretoken_id]
+            pair_locations[new_pair].add(pretoken_id)
+
+        pretoken_tuples[pretoken_id] = new_pretoken
+
+    del pair_freq[merge_pair]
+    del pair_locations[merge_pair]
+
+    return pair_freq, pair_locations, pretoken_tuples
+
+
+def find_merge_pair(pair_freq, vocab):
+    return max(pair_freq, key = lambda pair: (pair_freq[pair], tuple(vocab[p] for p in pair)))
 
 
 def compute_pretoken_counts(chunk):
 
     input_path, start, end, special_tokens = chunk
 
-    pretoken_freq = {}
+    pretoken_freq = defaultdict(int)
 
     split_pattern = "|".join(re.escape(special_token) for special_token in special_tokens)
 
@@ -98,7 +126,7 @@ def compute_pretoken_counts(chunk):
     for doc in docs:
         for pretoken in re.finditer(PAT, doc):
             pretoken_tuple = tuple(pretoken.group().encode('utf-8'))
-            pretoken_freq[pretoken_tuple] = pretoken_freq.get(pretoken_tuple, 0) + 1
+            pretoken_freq[pretoken_tuple] += 1
     
     return pretoken_freq
 
@@ -117,7 +145,7 @@ def train_bpe(
     for i in range(n_single_bytes):
         vocab[i] = bytes([i])
 
-    pretoken_freq = {}
+    pretoken_freq_by_tuple = defaultdict(int)
 
     with open(input_path, "rb") as f:
         num_processes = 4
@@ -132,15 +160,24 @@ def train_bpe(
         
     for pt_freq in pretoken_freqs:
         for k, v in pt_freq.items():
-            pretoken_freq[k] = pretoken_freq.get(k, 0) + v
+            pretoken_freq_by_tuple[k] += v
     
+    pretoken_freq = defaultdict(int)
+    pretoken_tuples = {}
+
+    for id, (pretoken, freq) in enumerate(pretoken_freq_by_tuple.items()):
+        pretoken_freq[id] = freq
+        pretoken_tuples[id] = pretoken
+
+    pair_freq, pair_locations = get_pair_stats(pretoken_tuples, pretoken_freq)
+
     for i in range(n_single_bytes, vocab_size - n_special_tokens):
-        int1, int2 = find_merge_pair(pretoken_freq, vocab)
+        int1, int2 = find_merge_pair(pair_freq, vocab)
         byte1 = vocab[int1]
         byte2 = vocab[int2]
         vocab[i] = byte1 + byte2
         merges.append((byte1, byte2))
-        pretoken_freq = merge(pretoken_freq, (int1, int2), i)
+        pair_freq, pair_locations, pretoken_tuples = merge(pair_freq, pair_locations, pretoken_tuples, pretoken_freq, (int1, int2), i)
 
     for i in range(n_special_tokens):
         vocab[vocab_size - n_special_tokens + i] = special_tokens[i].encode('utf-8')
