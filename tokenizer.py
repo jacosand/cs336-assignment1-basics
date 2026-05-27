@@ -54,18 +54,31 @@ def find_chunk_boundaries(
     return sorted(set(chunk_boundaries))
 
 
-def get_pair_stats(pretoken_tuples, pretoken_freq):
+def get_pair_stats(
+        pretoken_tuples: dict[int, tuple],
+        pretoken_freq: dict[int, int],
+    ) -> tuple[dict[tuple[int, int], int], dict[tuple[int, int], set]]:
+
     pair_freq = defaultdict(int)
     pair_locations = defaultdict(set)
+    
     for pretoken_id, freq in pretoken_freq.items():
         pretoken = pretoken_tuples[pretoken_id]
         for pair in zip(pretoken, pretoken[1:]):
             pair_freq[pair] += freq
             pair_locations[pair].add(pretoken_id)
+    
     return pair_freq, pair_locations
 
 
-def merge(pair_freq, pair_locations, pretoken_tuples, pretoken_freq, merge_pair, idx):
+def merge(
+        pair_freq: dict[tuple[int, int], int],
+        pair_locations: dict[tuple[int, int], set],
+        pretoken_tuples: dict[int, tuple],
+        pretoken_freq: dict[int, int],
+        merge_pair: tuple[int, int],
+        idx: int,
+    ) -> tuple[dict[tuple[int, int], int], dict[tuple[int, int], set], dict[int, tuple]]:
 
     for pretoken_id in pair_locations[merge_pair]:
         
@@ -105,7 +118,10 @@ def merge(pair_freq, pair_locations, pretoken_tuples, pretoken_freq, merge_pair,
     return pair_freq, pair_locations, pretoken_tuples
 
 
-def find_merge_pair(pair_freq, vocab):
+def find_merge_pair(
+        pair_freq: dict[tuple, int],
+        vocab: dict[int, bytes],
+    ) -> tuple[int, int]:
     return max(pair_freq, key = lambda pair: (pair_freq[pair], tuple(vocab[p] for p in pair)))
 
 
@@ -145,7 +161,7 @@ def train_bpe(
     for i in range(n_single_bytes):
         vocab[i] = bytes([i])
 
-    pretoken_freq_by_tuple = defaultdict(int)
+    pretoken_tuple_to_freq = defaultdict(int)
 
     with open(input_path, "rb") as f:
         num_processes = 4
@@ -156,16 +172,16 @@ def train_bpe(
         chunks.append((input_path, start, end, special_tokens))
     
     with multiprocessing.Pool(num_processes) as pool:
-        pretoken_freqs = pool.map(compute_pretoken_counts, chunks)
+        pretoken_freq_by_chunk = pool.map(compute_pretoken_counts, chunks)
         
-    for pt_freq in pretoken_freqs:
-        for k, v in pt_freq.items():
-            pretoken_freq_by_tuple[k] += v
+    for pretoken_freq_chunk in pretoken_freq_by_chunk:
+        for pretoken_tuple, freq in pretoken_freq_chunk.items():
+            pretoken_tuple_to_freq[pretoken_tuple] += freq
     
     pretoken_freq = defaultdict(int)
     pretoken_tuples = {}
 
-    for id, (pretoken, freq) in enumerate(pretoken_freq_by_tuple.items()):
+    for id, (pretoken, freq) in enumerate(pretoken_tuple_to_freq.items()):
         pretoken_freq[id] = freq
         pretoken_tuples[id] = pretoken
 
