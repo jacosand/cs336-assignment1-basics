@@ -71,6 +71,26 @@ def get_pair_stats(
     return pair_freq, pair_locations
 
 
+def merge_pretoken(
+    pretoken: tuple,
+    merge_pair: tuple[int, int],
+    idx: int,
+) -> tuple:
+
+    new_pretoken = []
+
+    i = 0
+    while i < len(pretoken):
+        if i < len(pretoken) - 1 and (pretoken[i], pretoken[i+1]) == merge_pair:
+            new_pretoken.append(idx)
+            i += 2
+        else:
+            new_pretoken.append(pretoken[i])
+            i += 1
+    
+    return tuple(new_pretoken)
+
+
 def merge(
         pair_freq: dict[tuple[int, int], int],
         pair_locations: dict[tuple[int, int], set],
@@ -83,36 +103,17 @@ def merge(
     for pretoken_id in pair_locations[merge_pair]:
         
         pretoken = pretoken_tuples[pretoken_id]
-        new_pretoken = []
-        new_pairs = []
-        old_pairs = []
 
-        i = 0
-        while i < len(pretoken):
-            if i < len(pretoken) - 1 and (pretoken[i], pretoken[i+1]) == merge_pair:
-                new_pretoken.append(idx)
-                if i != 0:
-                    old_pairs.append((pretoken[i-1], pretoken[i]))
-                    new_pairs.append((pretoken[i-1], idx))
-                if i != len(pretoken) - 2:
-                    old_pairs.append((pretoken[i+1], pretoken[i+2]))
-                    new_pairs.append((idx, pretoken[i+2]))
-                old_pairs.append(merge_pair)
-                i += 2
-            else:
-                new_pretoken.append(pretoken[i])
-                i += 1
+        new_pretoken  = merge_pretoken(pretoken, merge_pair, idx)
 
-        for old_pair in old_pairs:
-            pair_freq[old_pair] -= pretoken_freq[pretoken_id]
-        for new_pair in new_pairs:
-            pair_freq[new_pair] += pretoken_freq[pretoken_id]
-            pair_locations[new_pair].add(pretoken_id)
+        for pair in zip(pretoken[:-1], pretoken[1:]):
+            pair_freq[pair] -= pretoken_freq[pretoken_id]
+        
+        for pair in zip(new_pretoken[:-1], new_pretoken[1:]):
+            pair_freq[pair] += pretoken_freq[pretoken_id]
+            pair_locations[pair].add(pretoken_id)
 
         pretoken_tuples[pretoken_id] = tuple(new_pretoken)
-
-    del pair_freq[merge_pair]
-    del pair_locations[merge_pair]
 
     return pair_freq, pair_locations, pretoken_tuples
 
