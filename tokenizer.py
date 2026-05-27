@@ -125,7 +125,9 @@ def find_merge_pair(
     return max(pair_freq, key = lambda pair: (pair_freq[pair], tuple(vocab[p] for p in pair)))
 
 
-def compute_pretoken_counts(chunk):
+def compute_pretoken_counts(
+        chunk: tuple[str | os.PathLike, int, int, list[str]]
+    ) -> dict[tuple, int]:
 
     input_path, start, end, special_tokens = chunk
 
