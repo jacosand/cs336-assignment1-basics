@@ -155,11 +155,11 @@ def train_bpe(
     input_path: str | os.PathLike,
     vocab_size: int,
     special_tokens: list[str],
+    num_processes: int = 4,
     ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
 
     n_special_tokens = len(special_tokens)
     n_single_bytes = 256
-    num_processes = min(multiprocessing.cpu_count(), 8)
 
     vocab = {}
     merges = []
