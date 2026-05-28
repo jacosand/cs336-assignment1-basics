@@ -108,6 +108,8 @@ def merge(
 
         for pair in zip(pretoken[:-1], pretoken[1:]):
             pair_freq[pair] -= pretoken_freq[pretoken_id]
+            if pair_freq[pair] == 0:
+                del pair_freq[pair]
         
         for pair in zip(new_pretoken[:-1], new_pretoken[1:]):
             pair_freq[pair] += pretoken_freq[pretoken_id]
@@ -157,7 +159,7 @@ def train_bpe(
 
     n_special_tokens = len(special_tokens)
     n_single_bytes = 256
-    num_processes = 4
+    num_processes = min(multiprocessing.cpu_count(), 8)
 
     vocab = {}
     merges = []
@@ -201,8 +203,3 @@ def train_bpe(
         vocab[vocab_size - n_special_tokens + i] = special_tokens[i].encode('utf-8')
 
     return vocab, merges
-
-if __name__ == "__main__":
-    vocab, merges = train_bpe('data/TinyStoriesV2-GPT4-valid.txt', 1000, ["<|endoftext|>"])
-    print(vocab)
-    print(merges)
