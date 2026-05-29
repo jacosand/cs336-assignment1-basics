@@ -56,9 +56,9 @@ def find_chunk_boundaries(
 
 
 def get_pair_stats(
-        pretoken_tuples: dict[int, tuple],
+        pretoken_tuples: dict[int, tuple[int, ...]],
         pretoken_freq: dict[int, int],
-    ) -> tuple[dict[tuple[int, int], int], dict[tuple[int, int], set]]:
+    ) -> tuple[dict[tuple[int, int], int], list[tuple[int, tuple[int, int]]], dict[tuple[int, int], set]]:
 
     pair_freq = defaultdict(int)
     pair_locations = defaultdict(set)
@@ -76,7 +76,7 @@ def get_pair_stats(
 
 
 def merge_pretoken(
-    pretoken: tuple,
+    pretoken: tuple[int, ...],
     merge_pair: tuple[int, int],
     idx: int,
 ) -> tuple:
@@ -97,13 +97,13 @@ def merge_pretoken(
 
 def merge(
         pair_freq: dict[tuple[int, int], int],
-        pair_freq_heap,
+        pair_freq_heap: list[tuple[int, tuple[int, int]]],
         pair_locations: dict[tuple[int, int], set],
-        pretoken_tuples: dict[int, tuple],
+        pretoken_tuples: dict[int, tuple[int, ...]],
         pretoken_freq: dict[int, int],
         merge_pair: tuple[int, int],
         idx: int,
-    ) -> tuple[dict[tuple[int, int], int], dict[tuple[int, int], set], dict[int, tuple]]:
+    ) -> tuple[dict[tuple[int, int], int], list[tuple[int, tuple[int, int]]], dict[tuple[int, int], set], dict[int, tuple[int, ...]]]:
 
     for pretoken_id in pair_locations[merge_pair]:
         
@@ -128,15 +128,15 @@ def merge(
 
 
 def find_merge_pair(
-        pair_freq: dict[tuple, int],
-        pair_freq_heap,
+        pair_freq: dict[tuple[int, int], int],
+        pair_freq_heap: list[tuple[int, tuple[int, int]]],
         vocab: dict[int, bytes],
     ) -> tuple[int, int]:
 
     neg_freq, pair = pair_freq_heap[0]
     candidate_pairs = set()
 
-    while True:
+    while pair_freq_heap:
         current_neg_freq, pair = heapq.heappop(pair_freq_heap)
         if current_neg_freq != neg_freq:
             if candidate_pairs:
@@ -158,7 +158,7 @@ def find_merge_pair(
 
 def compute_pretoken_counts(
         chunk: tuple[str | os.PathLike, int, int, list[str]]
-    ) -> dict[tuple, int]:
+    ) -> dict[tuple[int, ...], int]:
 
     input_path, start, end, special_tokens = chunk
 
@@ -214,9 +214,9 @@ def train_bpe(
     pretoken_freq = defaultdict(int)
     pretoken_tuples = {}
 
-    for id, (pretoken, freq) in enumerate(pretoken_tuple_to_freq.items()):
-        pretoken_freq[id] = freq
-        pretoken_tuples[id] = pretoken
+    for pretoken_id, (pretoken, freq) in enumerate(pretoken_tuple_to_freq.items()):
+        pretoken_freq[pretoken_id] = freq
+        pretoken_tuples[pretoken_id] = pretoken
 
     pair_freq, pair_freq_heap, pair_locations = get_pair_stats(pretoken_tuples, pretoken_freq)
 
