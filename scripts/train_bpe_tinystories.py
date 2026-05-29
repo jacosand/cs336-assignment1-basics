@@ -21,7 +21,7 @@ def main():
     longest_token_id, longest_token_bytes = max(vocab.items(), key = lambda kv: len(kv[1]))
     longest_token_str = longest_token_bytes.decode('utf-8')
 
-    print(f"Time: {training_time} s")
+    print(f"Time: {training_time:.2f} s")
     print(f"Longest Token: {longest_token_str}")
 
     with open(vocab_file, "wb") as f:

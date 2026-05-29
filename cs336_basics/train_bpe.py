@@ -2,6 +2,7 @@ import os
 from typing import BinaryIO
 from collections import defaultdict
 import regex as re
+import heapq
 import multiprocessing
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -68,7 +69,10 @@ def get_pair_stats(
             pair_freq[pair] += freq
             pair_locations[pair].add(pretoken_id)
     
-    return pair_freq, pair_locations
+    pair_freq_heap = [(-freq, pair) for pair, freq in pair_freq.items()]
+    heapq.heapify(pair_freq_heap)
+
+    return pair_freq, pair_freq_heap, pair_locations
 
 
 def merge_pretoken(
@@ -93,6 +97,7 @@ def merge_pretoken(
 
 def merge(
         pair_freq: dict[tuple[int, int], int],
+        pair_freq_heap,
         pair_locations: dict[tuple[int, int], set],
         pretoken_tuples: dict[int, tuple],
         pretoken_freq: dict[int, int],
@@ -108,23 +113,47 @@ def merge(
 
         for pair in zip(pretoken[:-1], pretoken[1:]):
             pair_freq[pair] -= pretoken_freq[pretoken_id]
+            heapq.heappush(pair_freq_heap, (-pair_freq[pair], pair))
             if pair_freq[pair] == 0:
                 del pair_freq[pair]
         
         for pair in zip(new_pretoken[:-1], new_pretoken[1:]):
             pair_freq[pair] += pretoken_freq[pretoken_id]
+            heapq.heappush(pair_freq_heap, (-pair_freq[pair], pair))
             pair_locations[pair].add(pretoken_id)
 
         pretoken_tuples[pretoken_id] = tuple(new_pretoken)
 
-    return pair_freq, pair_locations, pretoken_tuples
+    return pair_freq, pair_freq_heap, pair_locations, pretoken_tuples
 
 
 def find_merge_pair(
         pair_freq: dict[tuple, int],
+        pair_freq_heap,
         vocab: dict[int, bytes],
     ) -> tuple[int, int]:
-    return max(pair_freq, key = lambda pair: (pair_freq[pair], tuple(vocab[p] for p in pair)))
+
+    neg_freq, pair = pair_freq_heap[0]
+    candidate_pairs = set()
+
+    while True:
+        current_neg_freq, pair = heapq.heappop(pair_freq_heap)
+        if current_neg_freq != neg_freq:
+            if candidate_pairs:
+                heapq.heappush(pair_freq_heap, (current_neg_freq, pair))
+                break
+            else:
+                neg_freq = current_neg_freq
+        if pair_freq[pair] == -current_neg_freq:
+            candidate_pairs.add((current_neg_freq, pair))
+    
+    neg_freq, pair = max(candidate_pairs, key = lambda entry: tuple(vocab[i] for i in entry[1]))
+    candidate_pairs.remove((neg_freq, pair))
+
+    for entry in candidate_pairs:
+        heapq.heappush(pair_freq_heap, entry)
+
+    return pair
 
 
 def compute_pretoken_counts(
@@ -189,15 +218,15 @@ def train_bpe(
         pretoken_freq[id] = freq
         pretoken_tuples[id] = pretoken
 
-    pair_freq, pair_locations = get_pair_stats(pretoken_tuples, pretoken_freq)
+    pair_freq, pair_freq_heap, pair_locations = get_pair_stats(pretoken_tuples, pretoken_freq)
 
     for i in range(n_single_bytes, vocab_size - n_special_tokens):
-        int1, int2 = find_merge_pair(pair_freq, vocab)
+        int1, int2 = find_merge_pair(pair_freq, pair_freq_heap, vocab)
         byte1 = vocab[int1]
         byte2 = vocab[int2]
         vocab[i] = byte1 + byte2
         merges.append((byte1, byte2))
-        pair_freq, pair_locations, pretoken_tuples = merge(pair_freq, pair_locations, pretoken_tuples, pretoken_freq, (int1, int2), i)
+        pair_freq, pair_freq_heap, pair_locations, pretoken_tuples = merge(pair_freq, pair_freq_heap, pair_locations, pretoken_tuples, pretoken_freq, (int1, int2), i)
 
     for i in range(n_special_tokens):
         vocab[vocab_size - n_special_tokens + i] = special_tokens[i].encode('utf-8')
