@@ -158,7 +158,7 @@ def find_merge_pair(
 
 def compute_pretoken_counts(
         chunk: tuple[str | os.PathLike, int, int, list[str]]
-    ) -> dict[tuple[int, ...], int]:
+    ) -> dict[bytes, int]:
 
     input_path, start, end, special_tokens = chunk
 
@@ -174,8 +174,8 @@ def compute_pretoken_counts(
 
     for doc in docs:
         for pretoken in re.finditer(PAT, doc):
-            pretoken_tuple = tuple(pretoken.group().encode('utf-8'))
-            pretoken_freq[pretoken_tuple] += 1
+            pretoken_bytes = pretoken.group().encode('utf-8')
+            pretoken_freq[pretoken_bytes] += 1
     
     return pretoken_freq
 
@@ -198,18 +198,18 @@ def train_bpe(
     pretoken_tuple_to_freq = defaultdict(int)
 
     with open(input_path, "rb") as f:
-        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(f, 4*num_processes, b"<|endoftext|>")
 
     chunks = []
     for start, end in zip(boundaries[:-1], boundaries[1:]):
         chunks.append((input_path, start, end, special_tokens))
-    
+
     with multiprocessing.Pool(num_processes) as pool:
         pretoken_freq_by_chunk = pool.map(compute_pretoken_counts, chunks)
-        
+
     for pretoken_freq_chunk in pretoken_freq_by_chunk:
-        for pretoken_tuple, freq in pretoken_freq_chunk.items():
-            pretoken_tuple_to_freq[pretoken_tuple] += freq
+        for pretoken_bytes, freq in pretoken_freq_chunk.items():
+            pretoken_tuple_to_freq[tuple(pretoken_bytes)] += freq
     
     pretoken_freq = defaultdict(int)
     pretoken_tuples = {}
