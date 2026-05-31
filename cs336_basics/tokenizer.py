@@ -16,6 +16,7 @@ class Tokenizer:
         self.vocab = vocab
         self.merges = merges
         self.special_tokens = special_tokens
+        self.split_pattern = None
 
         if self.special_tokens:
             self.special_tokens = sorted(self.special_tokens, key = len, reverse = True)
@@ -24,6 +25,7 @@ class Tokenizer:
                 if special_token.encode("utf-8") not in self.vocab.values():
                     self.vocab[current_token_id] = special_token.encode("utf-8")
                     current_token_id += 1
+            self.split_pattern = "|".join(re.escape(special_token) for special_token in self.special_tokens)
         
         self.token_ids = {token_bytes: token_id for token_id, token_bytes in self.vocab.items()}
 
@@ -47,8 +49,7 @@ class Tokenizer:
         tokens = []
 
         if self.special_tokens:
-            split_pattern = "|".join(re.escape(special_token) for special_token in self.special_tokens)
-            docs = re.split(f"({split_pattern})", text)
+            docs = re.split(f"({self.split_pattern})", text)
         else:
             docs = [text]
 
