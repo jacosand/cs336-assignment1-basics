@@ -16,7 +16,8 @@ class Tokenizer:
         self.vocab = vocab
         self.merges = merges
         self.special_tokens = special_tokens
-        self.split_pattern = None
+
+        self.merge_ranks = {merge_pair: rank for rank, merge_pair in enumerate(self.merges)}
 
         if self.special_tokens:
             self.special_tokens = sorted(self.special_tokens, key = len, reverse = True)
@@ -44,6 +45,33 @@ class Tokenizer:
         return cls(vocab, merges, special_tokens)
 
 
+    def encode_pretoken(self, pretoken: str) -> list[int]:
+
+        pretoken_bytes = [bytes([b]) for b in pretoken.encode("utf-8")]
+        new_pretoken_bytes = []
+
+        pretoken_pairs = list(zip(pretoken_bytes[:-1], pretoken_bytes[1:]))
+        merge_pair = min(pretoken_pairs, key = lambda pair: self.merge_ranks.get(pair, float('inf')), default=None)
+
+        while merge_pair in self.merge_ranks:
+            pretoken_index = 0
+            while pretoken_index <= len(pretoken_bytes) - 1:
+                if pretoken_index < len(pretoken_bytes) - 1 and tuple(pretoken_bytes[pretoken_index:pretoken_index+2]) == merge_pair:
+                    new_pretoken_bytes.append(pretoken_bytes[pretoken_index] + pretoken_bytes[pretoken_index+1])
+                    pretoken_index += 2
+                else:
+                    new_pretoken_bytes.append(pretoken_bytes[pretoken_index])
+                    pretoken_index += 1
+            pretoken_bytes = new_pretoken_bytes
+    
+            pretoken_pairs = list(zip(pretoken_bytes[:-1], pretoken_bytes[1:]))
+            merge_pair = min(pretoken_pairs, key = lambda pair: self.merge_ranks.get(pair, float('inf')), default=None)
+
+            new_pretoken_bytes = []
+        
+        return [self.token_ids[b] for b in pretoken_bytes]
+            
+
     def encode(self, text: str) -> list[int]:
         
         tokens = []
@@ -58,22 +86,7 @@ class Tokenizer:
                 tokens.append(self.token_ids[doc.encode("utf-8")])
             else:
                 for pretoken in re.finditer(PAT, doc):
-                    pretoken_bytes = [bytes([b]) for b in pretoken.group().encode("utf-8")]
-                    new_pretoken_bytes = []
-
-                    for merge in self.merges:
-                        pretoken_index = 0
-                        while pretoken_index <= len(pretoken_bytes) - 1:
-                            if pretoken_index < len(pretoken_bytes) - 1 and tuple(pretoken_bytes[pretoken_index:pretoken_index+2]) == merge:
-                                new_pretoken_bytes.append(pretoken_bytes[pretoken_index] + pretoken_bytes[pretoken_index+1])
-                                pretoken_index += 2
-                            else:
-                                new_pretoken_bytes.append(pretoken_bytes[pretoken_index])
-                                pretoken_index += 1
-                        pretoken_bytes = new_pretoken_bytes
-                        new_pretoken_bytes = []
-            
-                    tokens += [self.token_ids[b] for b in pretoken_bytes]
+                    tokens += self.encode_pretoken(pretoken.group())
 
         return tokens
 
