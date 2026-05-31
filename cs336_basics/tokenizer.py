@@ -78,7 +78,9 @@ class Tokenizer:
 
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
-        pass
+        for text in iterable:
+            for token_id in self.encode(text):
+                yield token_id
 
 
     def decode(self, ids: list[int]) -> str:
