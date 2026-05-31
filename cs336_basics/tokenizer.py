@@ -1,6 +1,7 @@
 from typing import Iterable, Iterator
 import pickle
 import regex as re
+import functools
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
@@ -45,6 +46,7 @@ class Tokenizer:
         return cls(vocab, merges, special_tokens)
 
 
+    @functools.cache
     def encode_pretoken(self, pretoken: str) -> list[int]:
 
         pretoken_bytes = [bytes([b]) for b in pretoken.encode("utf-8")]
@@ -69,7 +71,7 @@ class Tokenizer:
 
             new_pretoken_bytes = []
         
-        return [self.token_ids[b] for b in pretoken_bytes]
+        return tuple(self.token_ids[b] for b in pretoken_bytes)
             
 
     def encode(self, text: str) -> list[int]:
@@ -99,19 +101,3 @@ class Tokenizer:
 
     def decode(self, ids: list[int]) -> str:
         return b"".join(self.vocab[i] for i in ids).decode("utf-8", errors="replace")
-
-
-def main():
-    tokenizer = Tokenizer.from_files(
-        vocab_filepath = "artifacts/tokenizer-tinystories-10000-vocab.pkl",
-        merges_filepath = "artifacts/tokenizer-tinystories-10000-merges.pkl",
-        special_tokens = None,
-    )
-    
-    encoding = tokenizer.encode("hello")
-    print(encoding)
-    decoding = tokenizer.decode(encoding)
-    print(decoding)
-
-if __name__ == "__main__":
-    main()
