@@ -105,21 +105,30 @@ def merge(
         idx: int,
     ) -> tuple[dict[tuple[int, int], int], list[tuple[int, tuple[int, int]]], dict[tuple[int, int], set], dict[int, tuple[int, ...]]]:
 
-    for pretoken_id in pair_locations[merge_pair]:
+    relevant_pretoken_ids = list(pair_locations[merge_pair])
+
+    for pretoken_id in relevant_pretoken_ids:
         
         pretoken = pretoken_tuples[pretoken_id]
-
         new_pretoken  = merge_pretoken(pretoken, merge_pair, idx)
 
-        for pair in zip(pretoken[:-1], pretoken[1:]):
+        old_pairs = list(zip(pretoken[:-1], pretoken[1:]))
+        new_pairs = list(zip(new_pretoken[:-1], new_pretoken[1:]))
+
+        for pair in old_pairs:
             pair_freq[pair] -= pretoken_freq[pretoken_id]
-            heapq.heappush(pair_freq_heap, (-pair_freq[pair], pair))
             if pair_freq[pair] == 0:
                 del pair_freq[pair]
+            else:
+                heapq.heappush(pair_freq_heap, (-pair_freq[pair], pair))
         
-        for pair in zip(new_pretoken[:-1], new_pretoken[1:]):
+        for pair in new_pairs:
             pair_freq[pair] += pretoken_freq[pretoken_id]
             heapq.heappush(pair_freq_heap, (-pair_freq[pair], pair))
+
+        for pair in set(old_pairs) - set(new_pairs):
+            pair_locations[pair].discard(pretoken_id)
+        for pair in set(new_pairs) - set(old_pairs):
             pair_locations[pair].add(pretoken_id)
 
         pretoken_tuples[pretoken_id] = tuple(new_pretoken)
