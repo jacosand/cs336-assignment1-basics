@@ -58,7 +58,7 @@ def find_chunk_boundaries(
 def get_pair_stats(
         pretoken_tuples: dict[int, tuple[int, ...]],
         pretoken_freq: dict[int, int],
-    ) -> tuple[dict[tuple[int, int], int], list[tuple[int, tuple[int, int]]], dict[tuple[int, int], set]]:
+    ) -> tuple[dict[tuple[int, int], int], dict[tuple[int, int], set]]:
 
     pair_freq = defaultdict(int)
     pair_locations = defaultdict(set)
@@ -69,10 +69,18 @@ def get_pair_stats(
             pair_freq[pair] += freq
             pair_locations[pair].add(pretoken_id)
     
+    return pair_freq, pair_locations
+
+
+def build_heap(
+        pair_freq: dict[tuple[int, int], int],
+    ) -> list[tuple[int, tuple[int, int]]]:
+
     pair_freq_heap = [(-freq, pair) for pair, freq in pair_freq.items()]
     heapq.heapify(pair_freq_heap)
 
-    return pair_freq, pair_freq_heap, pair_locations
+    return pair_freq_heap
+
 
 
 def merge_pretoken(
@@ -227,9 +235,14 @@ def train_bpe(
         pretoken_freq[pretoken_id] = freq
         pretoken_tuples[pretoken_id] = pretoken
 
-    pair_freq, pair_freq_heap, pair_locations = get_pair_stats(pretoken_tuples, pretoken_freq)
+    pair_freq, pair_locations = get_pair_stats(pretoken_tuples, pretoken_freq)
+    pair_freq_heap = build_heap(pair_freq)
 
     for i in range(n_single_bytes, vocab_size - n_special_tokens):
+
+        if len(pair_freq_heap) >= 4 * len(pair_freq):
+            pair_freq_heap = build_heap(pair_freq)
+        
         int1, int2 = find_merge_pair(pair_freq, pair_freq_heap, vocab)
         byte1 = vocab[int1]
         byte2 = vocab[int2]
