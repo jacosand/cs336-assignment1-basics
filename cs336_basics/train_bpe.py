@@ -82,7 +82,6 @@ def build_heap(
     return pair_freq_heap
 
 
-
 def merge_pretoken(
     pretoken: tuple[int, ...],
     merge_pair: tuple[int, int],
@@ -161,7 +160,7 @@ def find_merge_pair(
                 break
             else:
                 neg_freq = current_neg_freq
-        if pair_freq[pair] == -current_neg_freq:
+        if pair_freq.get(pair) == -current_neg_freq:
             candidate_pairs.add((current_neg_freq, pair))
     
     neg_freq, pair = max(candidate_pairs, key = lambda entry: tuple(vocab[i] for i in entry[1]))
