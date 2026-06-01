@@ -127,7 +127,7 @@ def merge(
             heapq.heappush(pair_freq_heap, (-pair_freq[pair], pair))
 
         for pair in set(old_pairs) - set(new_pairs):
-            pair_locations[pair].discard(pretoken_id)
+            pair_locations[pair].remove(pretoken_id)
         for pair in set(new_pairs) - set(old_pairs):
             pair_locations[pair].add(pretoken_id)
 
