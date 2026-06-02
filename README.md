@@ -86,14 +86,16 @@ The two-byte sequence `b'\xe7\x89` does not decode to any Unicode character(s), 
 
 #### (a) Train a byte-level BPE tokenizer on the TinyStories dataset, using a maximum vocabulary size of 10,000. Make sure to add the TinyStories `<|endoftext|>` special token to the vocabulary. Serialize the resulting vocabulary and merges to disk for further inspection. How much time and memory did training take? What is the longest token in the vocabulary? Does it make sense?
 
-The training took 93.27 seconds and had a peak memory use of 460 MB.  The longest token in the vocabular is " accomplishment", which makes sense since it is a relatively common 15-byte string.
+The training took 102.25 seconds and had a peak memory use of 446 MB.  The longest token in the vocabular is ` accomplishment`, which makes sense since it is a relatively common 15-byte string.
 
 #### (b) Profile your code. What part of the tokenizer training process takes the most time?
 
-The pretokenization takes the most time: about 68.59 seconds out of 93.27 seconds.
+The pretokenization takes the most time: 94.52 seconds.
 
 ### `train_bpe_owt`
 
 #### (a) Train a byte-level BPE tokenizer on the OpenWebText dataset, using a maximum vocabulary size of 32,000. Serialize the resulting vocabulary and merges to disk for further inspection. What is the longest token in the vocabulary? Does it make sense?
+
+The training took 19.49 minutes and had a peak memory use of 7.86 GB.  The longest token is `ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ`, which makes sense since OpenWebText is a much more realistic dataset of text on the web than the curated TinyStories dataset.
 
 #### (b) Compare and contrast the tokenizer that you get training on TinyStories versus OpenWebText.
