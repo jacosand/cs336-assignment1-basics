@@ -114,6 +114,8 @@ def merge(
 
     relevant_pretoken_ids = list(pair_locations[merge_pair])
 
+    pair_freq_changes = defaultdict(int)
+
     for pretoken_id in relevant_pretoken_ids:
         
         pretoken = pretoken_tuples[pretoken_id]
@@ -122,23 +124,34 @@ def merge(
         old_pairs = list(zip(pretoken[:-1], pretoken[1:]))
         new_pairs = list(zip(new_pretoken[:-1], new_pretoken[1:]))
 
+        old_pairs_set = set(old_pairs)
+        new_pairs_set = set(new_pairs)
+        
         for pair in old_pairs:
-            pair_freq[pair] -= pretoken_freq[pretoken_id]
+            pair_freq_changes[pair] -= pretoken_freq[pretoken_id]
+        
+        for pair in new_pairs:
+            pair_freq_changes[pair] += pretoken_freq[pretoken_id]
+        
+        for pair in old_pairs_set - new_pairs_set:
+            pair_locations[pair].remove(pretoken_id)
+            if pair_locations[pair] == set():
+                del pair_locations[pair]
+
+        for pair in new_pairs_set - old_pairs_set:
+            pair_locations[pair].add(pretoken_id)
+
+        pretoken_tuples[pretoken_id] = tuple(new_pretoken)
+    
+    for pair in pair_freq_changes:
+        if pair_freq_changes[pair] == 0:
+            continue
+        else:
+            pair_freq[pair] += pair_freq_changes[pair]
             if pair_freq[pair] == 0:
                 del pair_freq[pair]
             else:
                 heapq.heappush(pair_freq_heap, (-pair_freq[pair], pair))
-        
-        for pair in new_pairs:
-            pair_freq[pair] += pretoken_freq[pretoken_id]
-            heapq.heappush(pair_freq_heap, (-pair_freq[pair], pair))
-
-        for pair in set(old_pairs) - set(new_pairs):
-            pair_locations[pair].remove(pretoken_id)
-        for pair in set(new_pairs) - set(old_pairs):
-            pair_locations[pair].add(pretoken_id)
-
-        pretoken_tuples[pretoken_id] = tuple(new_pretoken)
 
     return pair_freq, pair_freq_heap, pair_locations, pretoken_tuples
 
@@ -239,9 +252,10 @@ def train_bpe(
 
     for i in range(n_single_bytes, vocab_size - n_special_tokens):
 
-        if len(pair_freq_heap) >= 4 * len(pair_freq):
-            pair_freq_heap = build_heap(pair_freq)
-        
+        merge_number = i - n_single_bytes
+        if merge_number % 1000 == 0:
+            print(f"Merge number = {merge_number}")
+
         int1, int2 = find_merge_pair(pair_freq, pair_freq_heap, vocab)
         byte1 = vocab[int1]
         byte2 = vocab[int2]
