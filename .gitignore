@@ -26,8 +26,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Data
+# Data and Artifacts
 data/
+artifacts/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -164,3 +165,5 @@ cython_debug/
 
 .ruff_cache/
 *.zip
+
+.DS_Store
