@@ -77,6 +77,11 @@ class RMSNorm(nn.Module):
         x: Float[Tensor, "... d_model"],
     ) -> Float[Tensor, "... d_model"]:
         
+        in_dtype = x.dtype
+        x = x.to(torch.float32)
+
         inv_rms = (einsum(x**2, "... d_model -> ...") / self.d_model + self.eps) ** -0.5
         
-        return einsum(x, inv_rms, self.weight, "... d_model, ..., d_model -> ... d_model")
+        result = einsum(x, inv_rms, self.weight, "... d_model, ..., d_model -> ... d_model")
+
+        return result.to(in_dtype)
