@@ -116,3 +116,48 @@ class PositionWiseFeedForward(nn.Module):
         
         hidden = silu(self.w1(x)) * self.w3(x)
         return self.w2(hidden)
+
+
+class RotaryPositionEmbedding(nn.Module):
+    def __init__(
+        self,
+        theta: float,
+        d_k: int,
+        max_seq_len: int,
+        device: torch.device | None = None,
+    ):
+        super().__init__()
+
+        self.theta = theta
+        self.d_k = d_k
+        self.max_seq_len = max_seq_len
+
+        assert d_k % 2 == 0, "d_k must be divisible by 2"
+
+        pos_index = torch.arange(max_seq_len, device=device)
+        vec_index = torch.arange(d_k // 2, device=device)
+
+        inv_freq = theta ** (-2 * vec_index / d_k)
+        theta_ik = einsum(pos_index, inv_freq, 'i, k -> i k')
+        
+        self.register_buffer("cos_theta", torch.cos(theta_ik), persistent=False)
+        self.register_buffer("sin_theta", torch.sin(theta_ik), persistent=False)
+    
+    def forward(
+        self,
+        x: Float[Tensor, "... seq_len d_k"],
+        token_positions: Int[Tensor, "... seq_len"],
+    ) -> Float[Tensor, "... seq_len d_k"]:
+        
+        x_even = x[..., ::2]
+        x_odd = x[..., 1::2]
+
+        cos_values = self.cos_theta[token_positions]
+        sin_values = self.sin_theta[token_positions]
+
+        result = torch.empty_like(x)
+
+        result[..., ::2] = x_even * cos_values - x_odd * sin_values
+        result[..., 1::2] = x_even * sin_values + x_odd * cos_values 
+
+        return result
