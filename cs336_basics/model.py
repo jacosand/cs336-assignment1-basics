@@ -54,3 +54,29 @@ class Embedding(nn.Module):
         token_ids: Int[Tensor, "..."],
     ) -> Float[Tensor, "... embedding_dim"]:
         return self.weight[token_ids]
+
+
+class RMSNorm(nn.Module):
+
+    def __init__(
+        self,
+        d_model: int,
+        eps: float = 1e-5,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+
+        self.d_model = d_model
+        self.eps = eps
+    
+        self.weight = nn.Parameter(torch.ones(d_model, dtype=dtype, device=device))
+
+    def forward(
+        self,
+        x: Float[Tensor, "... d_model"],
+    ) -> Float[Tensor, "... d_model"]:
+        
+        inv_rms = (einsum(x**2, "... d_model -> ...") / self.d_model + self.eps) ** -0.5
+        
+        return einsum(x, inv_rms, self.weight, "... d_model, ..., d_model -> ... d_model")
