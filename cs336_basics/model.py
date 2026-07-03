@@ -139,7 +139,7 @@ class RotaryPositionEmbedding(nn.Module):
 
         inv_freq = theta ** (-2 * vec_index / d_k)
         theta_ik = einsum(pos_index, inv_freq, 'i, k -> i k')
-        
+
         self.register_buffer("cos_theta", torch.cos(theta_ik), persistent=False)
         self.register_buffer("sin_theta", torch.sin(theta_ik), persistent=False)
     
@@ -161,3 +161,11 @@ class RotaryPositionEmbedding(nn.Module):
         result[..., 1::2] = x_even * sin_values + x_odd * cos_values 
 
         return result
+
+
+def softmax(x: Float[Tensor, '...'], dim: int) -> Float[Tensor, '...']:
+
+    y = x - x.max(dim=dim, keepdim=True).values
+    y = torch.exp(y)
+
+    return y / y.sum(dim=dim, keepdim=True)
