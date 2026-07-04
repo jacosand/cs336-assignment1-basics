@@ -4,6 +4,7 @@ from torch import Tensor
 from torch import nn
 from einops import einsum, rearrange
 
+from cs336_basics import nn_utils
 
 class Linear(nn.Module):
 
@@ -169,14 +170,6 @@ class RotaryPositionEmbedding(nn.Module):
         return result
 
 
-def softmax(x: Float[Tensor, '...'], dim: int) -> Float[Tensor, '...']:
-
-    y = x - x.max(dim=dim, keepdim=True).values
-    y = torch.exp(y)
-
-    return y / y.sum(dim=dim, keepdim=True)
-
-
 def scaled_dot_product_attention(
     Q: Float[Tensor, "... queries d_k"],
     K: Float[Tensor, "... keys d_k"],
@@ -188,7 +181,7 @@ def scaled_dot_product_attention(
     att = einsum(Q, K, "... queries d_k, ... keys d_k -> ... queries keys") / d_k ** 0.5
     if mask is not None:
         att -= torch.where(mask==False, float('inf'), 0)
-    att = softmax(att, dim=-1)
+    att = nn_utils.softmax(att, dim=-1)
     return einsum(att, V, '... queries keys, ... keys d_v -> ... queries d_v')
 
 
