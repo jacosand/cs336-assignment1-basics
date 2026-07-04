@@ -169,3 +169,17 @@ def softmax(x: Float[Tensor, '...'], dim: int) -> Float[Tensor, '...']:
     y = torch.exp(y)
 
     return y / y.sum(dim=dim, keepdim=True)
+
+
+def scaled_dot_product_attention(
+    Q: Float[Tensor, "... queries d_k"],
+    K: Float[Tensor, "... keys d_k"],
+    V: Float[Tensor, "... keys d_v"],
+    mask: Float[Tensor, "... queries keys"],
+) -> Float[Tensor, "... queries d_v"]:
+    
+    d_k = Q.size(-1)
+    att = einsum(Q, K, "... queries d_k, ... keys d_k -> ... queries keys") / d_k ** 0.5
+    att -= torch.where(mask==False, float('inf'), 0)
+    att = softmax(att, dim=-1)
+    return einsum(att, V, '... queries keys, ... keys d_v -> ... queries d_v')
