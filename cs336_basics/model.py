@@ -197,24 +197,17 @@ class CausalMultiheadSelfAttention(nn.Module):
         self,
         d_model: int,
         num_heads: int,
-        max_seq_len: int | None = None,
-        theta: float | None = None,
+        position_encoder: nn.Module | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
         super().__init__()
 
-        assert d_model % num_heads == 0, "num_heads must divide d_model"
-
         self.d_model = d_model
         self.num_heads = num_heads
-        self.max_seq_len = max_seq_len
-        self.theta = theta
+        self.position_encoder = position_encoder
         self.qkv_proj = Linear(d_model, 3 * d_model, device=device, dtype=dtype)
         self.output_proj = Linear(d_model, d_model, device=device, dtype=dtype)
-        self.rope = None
-        if self.theta is not None and self.max_seq_len is not None:
-            self.rope = RotaryPositionEmbedding(theta, d_model // num_heads, max_seq_len, device=device)
     
     def forward(
         self,
@@ -227,9 +220,9 @@ class CausalMultiheadSelfAttention(nn.Module):
         q = rearrange(q, "... queries (num_heads head_size) -> ... num_heads queries head_size", num_heads=self.num_heads)
         k = rearrange(k, "... keys (num_heads head_size) -> ... num_heads keys head_size", num_heads=self.num_heads)
         v = rearrange(v, "... keys (num_heads head_size) -> ... num_heads keys head_size", num_heads=self.num_heads)
-        if self.rope is not None:
-            q = self.rope(q, token_positions)
-            k = self.rope(k, token_positions)
+        if self.position_encoder is not None:
+            q = self.position_encoder(q, token_positions)
+            k = self.position_encoder(k, token_positions)
         mask = torch.tril(torch.ones(q.size(-2), k.size(-2), device=x.device, dtype=torch.bool))
         y = scaled_dot_product_attention(q, k, v, mask=mask)
         y = rearrange(y, "... num_heads queries head_size -> ... queries (num_heads head_size)")
@@ -243,8 +236,7 @@ class TransformerBlock(nn.Module):
         d_model: int,
         num_heads: int,
         d_ff: int,
-        max_seq_len: int | None = None,
-        theta: float | None = None,
+        position_encoder: nn.Module | None = None,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -253,11 +245,10 @@ class TransformerBlock(nn.Module):
         self.d_model = d_model
         self.num_heads = num_heads
         self.d_df = d_ff
-        self.max_seq_len = max_seq_len
-        self.theta = theta
+        self.position_encoder = position_encoder
 
         self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
-        self.attn = CausalMultiheadSelfAttention(d_model, num_heads, max_seq_len, theta, device=device, dtype=dtype)
+        self.attn = CausalMultiheadSelfAttention(d_model, num_heads, position_encoder=position_encoder, device=device, dtype=dtype)
         self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
         self.ffn = PositionWiseFeedForward(d_model, d_ff, device=device, dtype=dtype)
     
@@ -294,9 +285,16 @@ class TransformerLM(nn.Module):
         self.d_ff = d_ff
         self.rope_theta = rope_theta
 
+        assert d_model % num_heads == 0, "num_heads must divide d_model"
+
+        if rope_theta is not None:
+            self.position_encoder = RotaryPositionEmbedding(rope_theta, d_model // num_heads, context_length, device=device)
+        else:
+            self.position_encoder = None
+
         self.token_embeddings = Embedding(vocab_size, d_model, device=device, dtype=dtype)
         self.layers = nn.ModuleList(
-            TransformerBlock(d_model, num_heads, d_ff, max_seq_len=context_length, theta=rope_theta, device=device, dtype=dtype) for _ in range(num_layers)
+            TransformerBlock(d_model, num_heads, d_ff, position_encoder=self.position_encoder, device=device, dtype=dtype) for _ in range(num_layers)
         )
         self.ln_final = RMSNorm(d_model, device=device, dtype=dtype)
         self.lm_head = Linear(d_model, vocab_size, device=device, dtype=dtype)

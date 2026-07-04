@@ -152,7 +152,7 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    mha = model.CausalMultiheadSelfAttention(d_model, num_heads)
+    mha = model.CausalMultiheadSelfAttention(d_model, num_heads, position_encoder=None)
     mha.load_state_dict({
         "qkv_proj.weight": torch.concat(
             [
@@ -204,7 +204,8 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    mha = model.CausalMultiheadSelfAttention(d_model, num_heads, max_seq_len=max_seq_len, theta=theta)
+    position_encoder = model.RotaryPositionEmbedding(theta, d_model // num_heads, max_seq_len)
+    mha = model.CausalMultiheadSelfAttention(d_model, num_heads, position_encoder=position_encoder)
     mha.load_state_dict({
         "qkv_proj.weight": torch.concat(
             [
@@ -312,7 +313,8 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    transformer = model.TransformerBlock(d_model, num_heads, d_ff, max_seq_len=max_seq_len, theta=theta)
+    position_encoder = model.RotaryPositionEmbedding(theta, d_model // num_heads, max_seq_len)
+    transformer = model.TransformerBlock(d_model, num_heads, d_ff, position_encoder=position_encoder)
 
     state_dict = dict(weights)
     state_dict['attn.qkv_proj.weight'] = torch.concat(
