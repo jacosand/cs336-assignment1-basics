@@ -181,7 +181,7 @@ def scaled_dot_product_attention(
     Q: Float[Tensor, "... queries d_k"],
     K: Float[Tensor, "... keys d_k"],
     V: Float[Tensor, "... keys d_v"],
-    mask: Float[Tensor, "... queries keys"] | None,
+    mask: Bool[Tensor, "... queries keys"] | None,
 ) -> Float[Tensor, "... queries d_v"]:
     
     d_k = Q.size(-1)
