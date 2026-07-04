@@ -146,14 +146,20 @@ class RotaryPositionEmbedding(nn.Module):
     def forward(
         self,
         x: Float[Tensor, "... seq_len d_k"],
-        token_positions: Int[Tensor, "... seq_len"],
+        token_positions: Int[Tensor, "... seq_len"] | None = None,
     ) -> Float[Tensor, "... seq_len d_k"]:
         
         x_even = x[..., ::2]
         x_odd = x[..., 1::2]
-
-        cos_values = self.cos_theta[token_positions]
-        sin_values = self.sin_theta[token_positions]
+        
+        seq_len = x.size(-2)
+        
+        if token_positions is not None:
+            cos_values = self.cos_theta[token_positions]
+            sin_values = self.sin_theta[token_positions]
+        else:
+            cos_values = self.cos_theta[:seq_len]
+            sin_values = self.sin_theta[:seq_len]
 
         result = torch.empty_like(x)
 
@@ -186,7 +192,7 @@ def scaled_dot_product_attention(
     return einsum(att, V, '... queries keys, ... keys d_v -> ... queries d_v')
 
 
-class MultiheadSelfAttention(nn.Module):
+class CausalMultiheadSelfAttention(nn.Module):
     def __init__(
         self,
         d_model: int,
@@ -204,8 +210,8 @@ class MultiheadSelfAttention(nn.Module):
         self.num_heads = num_heads
         self.max_seq_len = max_seq_len
         self.theta = theta
-        self.attn = Linear(d_model, 3 * d_model, device=device, dtype=dtype)
-        self.out = Linear(d_model, d_model, device=device, dtype=dtype)
+        self.qkv_proj = Linear(d_model, 3 * d_model, device=device, dtype=dtype)
+        self.output_proj = Linear(d_model, d_model, device=device, dtype=dtype)
         self.rope = None
         if self.theta is not None and self.max_seq_len is not None:
             self.rope = RotaryPositionEmbedding(theta, d_model // num_heads, max_seq_len, device=device)
@@ -216,16 +222,43 @@ class MultiheadSelfAttention(nn.Module):
         token_positions: Int[Tensor, " ... seq_len"] | None = None,
     ) -> Float[Tensor, "... seq_len d_model"]:
         
-        qkv = self.attn(x)
+        qkv = self.qkv_proj(x)
         q, k, v = torch.split(qkv, self.d_model, dim=-1)
         q = rearrange(q, "... queries (num_heads head_size) -> ... num_heads queries head_size", num_heads=self.num_heads)
         k = rearrange(k, "... keys (num_heads head_size) -> ... num_heads keys head_size", num_heads=self.num_heads)
         v = rearrange(v, "... keys (num_heads head_size) -> ... num_heads keys head_size", num_heads=self.num_heads)
-        if self.rope is not None and token_positions is not None:
+        if self.rope is not None:
             q = self.rope(q, token_positions)
             k = self.rope(k, token_positions)
         mask = torch.tril(torch.ones(q.size(-2), k.size(-2), device=x.device, dtype=torch.bool))
         y = scaled_dot_product_attention(q, k, v, mask=mask)
         y = rearrange(y, "... num_heads queries head_size -> ... queries (num_heads head_size)")
 
-        return self.out(y)
+        return self.output_proj(y)
+
+
+class TransformerBlock(nn.Module):
+    def __init__(
+        self,
+        d_model: int,
+        num_heads: int,
+        d_ff: int,
+        max_seq_len: int | None = None,
+        theta: float | None = None,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+        self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
+        self.attn = CausalMultiheadSelfAttention(d_model, num_heads, max_seq_len, theta, device=device, dtype=dtype)
+        self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
+        self.ffn = PositionWiseFeedForward(d_model, d_ff, device=device, dtype=dtype)
+    
+    def forward(
+        self,
+        x: Float[Tensor, "... seq_len d_model"],
+        token_positions: Int[Tensor, " ... seq_len"] | None = None,
+    ) -> Float[Tensor, "... seq_len d_model"]:
+        x = x + self.attn(self.ln1(x), token_positions)
+        x = x + self.ffn(self.ln2(x))
+        return x

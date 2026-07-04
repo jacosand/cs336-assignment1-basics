@@ -152,10 +152,10 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    mha = model.MultiheadSelfAttention(d_model, num_heads)
+    mha = model.CausalMultiheadSelfAttention(d_model, num_heads)
     mha.load_state_dict({
-        "attn.weight": torch.concat((q_proj_weight, k_proj_weight, v_proj_weight), dim=0),
-        "out.weight": o_proj_weight,
+        "qkv_proj.weight": torch.concat((q_proj_weight, k_proj_weight, v_proj_weight), dim=0),
+        "output_proj.weight": o_proj_weight,
     })
     return mha(in_features)
 
@@ -197,10 +197,10 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    mha = model.MultiheadSelfAttention(d_model, num_heads, max_seq_len=max_seq_len, theta=theta)
+    mha = model.CausalMultiheadSelfAttention(d_model, num_heads, max_seq_len=max_seq_len, theta=theta)
     mha.load_state_dict({
-        "attn.weight": torch.concat((q_proj_weight, k_proj_weight, v_proj_weight), dim=0),
-        "out.weight": o_proj_weight,
+        "qkv_proj.weight": torch.concat((q_proj_weight, k_proj_weight, v_proj_weight), dim=0),
+        "output_proj.weight": o_proj_weight,
     })
     return mha(in_features, token_positions)
 
@@ -298,7 +298,23 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+    transformer = model.TransformerBlock(d_model, num_heads, d_ff, max_seq_len=max_seq_len, theta=theta)
+
+    transformer.load_state_dict({
+        'attn.qkv_proj.weight': torch.concat((
+            weights['attn.q_proj.weight'],
+            weights['attn.k_proj.weight'],
+            weights['attn.v_proj.weight']
+        ), dim=0),
+        'attn.output_proj.weight': weights['attn.output_proj.weight'],
+        'ln1.weight': weights['ln1.weight'],
+        'ffn.w1.weight': weights['ffn.w1.weight'],
+        'ffn.w2.weight': weights['ffn.w2.weight'],
+        'ffn.w3.weight': weights["ffn.w3.weight"],
+        'ln2.weight': weights['ln2.weight'],
+    })
+
+    return transformer(in_features)
 
 
 def run_transformer_lm(
