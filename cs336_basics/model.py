@@ -249,6 +249,13 @@ class TransformerBlock(nn.Module):
         dtype: torch.dtype | None = None,
     ):
         super().__init__()
+
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_df = d_ff
+        self.max_seq_len = max_seq_len
+        self.theta = theta
+
         self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
         self.attn = CausalMultiheadSelfAttention(d_model, num_heads, max_seq_len, theta, device=device, dtype=dtype)
         self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
@@ -261,4 +268,47 @@ class TransformerBlock(nn.Module):
     ) -> Float[Tensor, "... seq_len d_model"]:
         x = x + self.attn(self.ln1(x), token_positions)
         x = x + self.ffn(self.ln2(x))
+        return x
+
+
+class TransformerLM(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        context_length: int,
+        d_model: int,
+        num_layers: int,
+        num_heads: int,
+        d_ff: int,
+        rope_theta: float | None = None,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
+        super().__init__()
+
+        self.vocab_size = vocab_size
+        self.context_length = context_length
+        self.d_model = d_model
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.rope_theta = rope_theta
+
+        self.token_embeddings = Embedding(vocab_size, d_model, device=device, dtype=dtype)
+        self.layers = nn.ModuleList(
+            TransformerBlock(d_model, num_heads, d_ff, max_seq_len=context_length, theta=rope_theta, device=device, dtype=dtype) for _ in range(num_layers)
+        )
+        self.ln_final = RMSNorm(d_model, device=device, dtype=dtype)
+        self.lm_head = Linear(d_model, vocab_size, device=device, dtype=dtype)
+    
+    def forward(
+        self,
+        x: Int[Tensor, "... seq_len"],
+        token_positions: Int[Tensor, "... seq_len"] | None = None,
+    ) -> Float[Tensor, "... seq_len vocab_size"]:
+        x = self.token_embeddings(x)
+        for layer in self.layers:
+            x = layer(x, token_positions)
+        x = self.ln_final(x)
+        x = self.lm_head(x)
         return x
