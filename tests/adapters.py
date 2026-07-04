@@ -154,7 +154,14 @@ def run_multihead_self_attention(
     """
     mha = model.CausalMultiheadSelfAttention(d_model, num_heads)
     mha.load_state_dict({
-        "qkv_proj.weight": torch.concat((q_proj_weight, k_proj_weight, v_proj_weight), dim=0),
+        "qkv_proj.weight": torch.concat(
+            [
+                q_proj_weight,
+                k_proj_weight,
+                v_proj_weight,
+            ],
+            dim=0
+        ),
         "output_proj.weight": o_proj_weight,
     })
     return mha(in_features)
