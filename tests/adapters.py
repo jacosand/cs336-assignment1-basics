@@ -199,7 +199,14 @@ def run_multihead_self_attention_with_rope(
     """
     mha = model.CausalMultiheadSelfAttention(d_model, num_heads, max_seq_len=max_seq_len, theta=theta)
     mha.load_state_dict({
-        "qkv_proj.weight": torch.concat((q_proj_weight, k_proj_weight, v_proj_weight), dim=0),
+        "qkv_proj.weight": torch.concat(
+            [
+                q_proj_weight,
+                k_proj_weight,
+                v_proj_weight,
+            ],
+            dim=0
+        ),
         "output_proj.weight": o_proj_weight,
     })
     return mha(in_features, token_positions)
@@ -300,19 +307,17 @@ def run_transformer_block(
     """
     transformer = model.TransformerBlock(d_model, num_heads, d_ff, max_seq_len=max_seq_len, theta=theta)
 
-    transformer.load_state_dict({
-        'attn.qkv_proj.weight': torch.concat((
-            weights['attn.q_proj.weight'],
-            weights['attn.k_proj.weight'],
-            weights['attn.v_proj.weight']
-        ), dim=0),
-        'attn.output_proj.weight': weights['attn.output_proj.weight'],
-        'ln1.weight': weights['ln1.weight'],
-        'ffn.w1.weight': weights['ffn.w1.weight'],
-        'ffn.w2.weight': weights['ffn.w2.weight'],
-        'ffn.w3.weight': weights["ffn.w3.weight"],
-        'ln2.weight': weights['ln2.weight'],
-    })
+    state_dict = dict(weights)
+    state_dict['attn.qkv_proj.weight'] = torch.concat(
+        [
+            state_dict.pop('attn.q_proj.weight'),
+            state_dict.pop('attn.k_proj.weight'),
+            state_dict.pop('attn.v_proj.weight'),
+        ],
+        dim=0,
+    )
+        
+    transformer.load_state_dict(state_dict)
 
     return transformer(in_features)
 
