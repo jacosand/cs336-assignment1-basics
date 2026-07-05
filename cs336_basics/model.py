@@ -237,7 +237,7 @@ class TransformerBlock(nn.Module):
 
         self.d_model = d_model
         self.num_heads = num_heads
-        self.d_df = d_ff
+        self.d_ff = d_ff
         self.position_encoder = position_encoder
 
         self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)

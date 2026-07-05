@@ -107,7 +107,7 @@ The vocabulary in the TinyStories tokenizer is highly curated, since the underly
 #### (a) Sample 10 documents from TinyStories and OpenWebText. Using your previously-trained TinyStories and OpenWebText tokenizers (10K and 32K vocabulary size, respectively), encode these sampled documents into integer IDs. What is each tokenizer's compression ratio (bytes/token)?
 The compression ratio for TinyStories is 4.126 bytes/token, while the compression ratio for OpenWebText is 4.678 bytes/token.
 
-#### (b) What happens if you tokenize your OpenWebText sample with the TinyStories tokenizer?  Compare the compression ratio and/or qualitatively describe what happens.
+#### (b) What happens if you tokenize your OpenWebText sample with the TinyStories tokenizer? Compare the compression ratio and/or qualitatively describe what happens.
 The compression ratio goes down to 3.187 bytes/token, because the TinyStories tokenizer was not specifically created for the OpenWebText dataset, so it is less efficient.
 
 #### (c) Estimate the throughput of your tokenizer (e.g., in bytes/second). How long would it take to tokenize the Pile dataset (825GB of text)?
@@ -116,3 +116,91 @@ The throughput for the TinyStories tokenizer is 719235 bytes/second, and the thr
 #### (d) Using your TinyStories and OpenWebText tokenizers, encode the respective training and development datasets into a sequence of integer token IDs. We'll use this later to train our language model. We recommend serializing the token IDs as a NumPy array of datatype `uint16`. Why is `uint16` an appropriate choice?
 
 `uint16` is an appropriate choice because `2**16 = 65536`, so having available integers from `0` to `65535` for tokenization accommodates vocabulary sizes of 10000 (TinyStories) and 32000 (OpenWebText).  Each token then requires just 2 bytes to store.
+
+### `transformer_accounting`
+
+#### (a) Consider a GPT-2 XL-sized model using our assignment architecture, which has the following configuration:
+
+- `vocab_size`: 50,257
+- `context_length`: 1,024
+- `num_layers`: 48
+- `d_model`: 1,600
+- `num_heads`: 25
+- `d_ff`: 4,288 (the nearest multiple of 64 to 8/3 * 1,600)
+
+#### Suppose we constructed our model using this configuration. How many trainable parameters would our model have? Assuming each parameter is represented using single-precision floating point, how much memory is required to just load this model?
+
+For each `TransformerBlock`, we have:
+- `CausalMultiheadSelfAttention`: `4 * d_model ** 2` (queries, keys, values, output)
+- `PositionWiseFeedForward`: `3 * d_model * d_ff` (gate, value, final)
+- 2 `RMSNorm`: `2 * d_model`
+
+In addition, for the `TransfomerLM`, we also have:
+- `Embedding`: `vocab_size * d_model`
+- 1 `RMSNorm`: `d_model`
+- 1 `Linear`: `vocab_size * d_model`
+
+Putting it all together, the number of trainable parameters is:
+`d_model * (2 * vocab_size + 1) + num_layers * d_model * (4 * d_model + 3 * d_ff + 2)`
+
+Plugging in numbers, this is 1,640,452,800 parameters.  If each parameters is 2 bytes, this is 3,280,905,600 bytes, or 3.28 GB.
+
+#### (b) Identify the matrix multiplies required to complete a forward pass of our GPT-2 XL-shaped model. How many FLOPs do these matrix multiplies require in total? Assume that our input sequence has context_length tokens.
+
+For each `TransformerBlock`, we have:
+- `CausalMultiheadSelfAttention` has QKV and output projection (`2 * 4 * d_model * d_model * context_length`) and query-key multiply and attention-value multiply (`2 * 2 * context_length * context_length * d_model`).
+- `PositionWiseFeedForward` has 3 projections (`2 * 3 * d_model * d_ff * context_length`).
+
+In addition, for the `TransformerLM`, we have:
+- 1 `Linear` has a projection (`2 * context_length * d_model * vocab_size`)
+
+Putting it all together, the number of FLOPs required for all of these matrix multiplies is:
+`2 * context_length * d_model * (vocab_size + num_layers * (4 * d_model + 2 * context_length + 3 * d_ff))`
+
+Plugging in numbers, this is 3,516,769,894,400 FLOPs, or 3.52 trillion FLOPs.
+
+#### (c) Based on your analysis above, which parts of the model require the most FLOPs?
+
+- LM Head: `2 * context_length * d_model * vocab_size` = 164,682,137,600 FLOPs (4.7%)
+- Attention Mechanism: `4 * num_layers * context_length ** 2 * d_model` = 322,122,547,200 FLOPs (9.2%)
+- Attention Projections: `8 * num_layers * context_length * d_model ** 2` = 1,006,632,960,000 FLOPs (28.6%)
+- Position-wise Feed Forward: `3 * num_layers * context_length * d_model * d_ff` = 2,023,332,249,600 FLOPs (57.5%)
+
+The position-wise feed forward requires by far the most FLOPs, followed by the projections used in attention.
+
+#### (d) Repeat your analysis with GPT-2 small (12 layers, 768 d_model, 12 heads), GPT-2 medium  (24 layers, 1024 d_model, 16 heads), and GPT-2 large (36 layers, 1280 d_model, 20 heads). As the model size increases, which parts of the Transformer LM take up proportionally more or less of the total FLOPs?
+
+For GPT-2 small, we have `vocab_size=50257, context_length=1024, num_layers=12, d_model=768, d_ff=2048`, so:
+
+- LM Head: 79,047,426,048 FLOPs (27.1%)
+- Attention Mechanism: 38,654,705,664 FLOPs (13.3%)
+- Attention Projections: 57,982,058,496 FLOPs (19.9%)
+- Position-wise Feed Forward: 115,964,116,992 FLOPs (39.8%)
+
+For GPT-2 medium, we have `vocab_size=50257, context_length=1024, num_layers=24, d_model=1024, d_ff=2752`, so:
+
+- LM Head: 105,396,568,064 FLOPs (12.7%)
+- Attention Mechanism: 103,079,215,104 FLOPs (12.4%)
+- Attention Projections: 206,158,430,208 FLOPs (24.8%)
+- Position-wise Feed Forward: 415,538,085,888 FLOPs (50.1%)
+
+For GPT-2 large, we have `vocab_size=50257, context_length=1024, num_layers=36, d_model=1280, d_ff=3392`, so:
+
+- LM Head: 131,745,710,080 FLOPs (7.4%)
+- Attention Mechanism: 193,273,528,320 FLOPs (10.9%)
+- Attention Projections: 483,183,820,800 FLOPs (27.3%)
+- Position-wise Feed Forward: 960,327,843,840 FLOPs (54.3%)
+
+As the model size increases, the position-wise feed forward and the projections used in attention take up a greater proportion of the total FLOPs, while the LM Head proportion of FLOPs shrinks dramatically.
+
+#### (e) Take GPT-2 XL and increase the context length to 16,384. How does the total FLOPs for one forward pass change? How does the relative contribution of FLOPs of the model components change?
+
+For GPT-2 XL with a longer context length of 16,384, we have `vocab_size=50257, context_length=16384, num_layers=48, d_model=1600, d_ff=4288`, so:
+
+- LM Head: 2,634,914,201,600 FLOPs (2.0%)
+- Attention Mechanism: 82,463,372,083,200 FLOPs (61.7%)
+- Attention Projections: 16,106,127,360,000 FLOPs (12.1%)
+- Position-wise Feed Forward: 32,373,315,993,600 FLOPs (24.2%)
+- Total: 133,577,729,638,400 FLOPs
+
+The total FLOPs increases dramatically by a factor of 38!  The dominant contribution becomes the attention mechanism, since is the part where the number of FLOPs scales quadratically in `context_length`.
