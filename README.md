@@ -204,3 +204,9 @@ For GPT-2 XL with a longer context length of 16,384, we have `vocab_size=50257, 
 - Total: 133,577,729,638,400 FLOPs
 
 The total FLOPs increases dramatically by a factor of 38!  The dominant contribution becomes the attention mechanism, since is the part where the number of FLOPs scales quadratically in `context_length`.
+
+### `learning_rate_tuning`
+
+#### As we will see, one of the hyperparameters that affects training the most is the learning rate. Let’s see that in practice in our toy example. Run the SGD example above with three other values for the learning rate: `1e1`, `1e2`, and `1e3`, for just 10 training iterations. What happens with the loss for each of these learning rates? Does it decay faster, slower, or does it diverge (i.e., increase over the course of training)?
+
+As the learning rate increases from `1e0` to `1e1` to `1e2`, the loss decays faster.  But when the learning rate is increased too high to `1e3`, the loss diverges.
