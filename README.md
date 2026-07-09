@@ -210,3 +210,40 @@ The total FLOPs increases dramatically by a factor of 38!  The dominant contribu
 #### As we will see, one of the hyperparameters that affects training the most is the learning rate. Let’s see that in practice in our toy example. Run the SGD example above with three other values for the learning rate: `1e1`, `1e2`, and `1e3`, for just 10 training iterations. What happens with the loss for each of these learning rates? Does it decay faster, slower, or does it diverge (i.e., increase over the course of training)?
 
 As the learning rate increases from `1e0` to `1e1` to `1e2`, the loss decays faster.  But when the learning rate is increased too high to `1e3`, the loss diverges.
+
+### `adamw_accounting`
+
+#### How much peak memory does running AdamW require? Decompose your answer based on the memory usage of the parameters, activations, gradients, and optimizer state. Express your answer in terms of the batch_size and the model hyperparameters (vocab_size, context_length, num_layers, d_model, num_heads). Assume d_ff = 8/3 x d_model.
+
+We already found that the number of trainable parameters is `d_model * (2 * vocab_size + 1) + num_layers * d_model * (4 * d_model + 3 * d_ff + 2)`.
+
+If we assume `d_ff = 8/3 x d_model`, the expression simplifies to `d_model * (2 * vocab_size + 1) + num_layers * d_model * (12 * d_model + 2)`.
+
+For the number of activations, we have per layer:
+- 2 x RMSNorm: `2 * batch_size * context_length * d_model`
+- QKV projections: `3 * batch_size * context_length * d_model`
+- QK^T matrix multiply: `batch_size * num_heads * context_length ** 2`
+- softmax: `batch_size * num_heads * context_length ** 2`
+- weighted sum of values:  `batch_size * context_length * d_model`
+- output projection: `batch_size * context_length * d_model`
+- SwiGLU (W1, W3, SiLU on gate, product): `4 * batch_size * context_length * d_ff`
+- SwiGLU (W2): `batch_size * context_length * d_model`
+
+We also have:
+- Final RMSNorm: `batch_size * context_length * d_model`
+- Output embedding: `batch_size * context_length * vocab_size`
+- Cross-entropy on logits: `batch_size * context_length * vocab_size`
+
+Putting it all together, the number of activations is:
+`num_layers * batch_size * context_length * (8 * d_model + 4 * d_ff + 2 * num_heads * context_length) + batch_size * context_length * (d_model + 2 * vocab_size)`
+
+If we assume `d_ff = 8/3 x d_model`, the expression simplifies to:
+`num_layers * batch_size * context_length * (56/3 * d_model + 2 * num_heads * context_length) + batch_size * context_length * (d_model + 2 * vocab_size)`
+
+The number of stored gradients is equal to the number of trainable parameters, and the optimizer state for AdamW is twice the number of trainable parameters (for first and second moments).  If we are using `float32` for every tensor, then every tensor element requires 4 bytes.
+
+This yields a final expression for bytes of memory required as:
+`16 * (d_model * (2 * vocab_size + 1) + num_layers * d_model * (12 * d_model + 2)) + 4 * (num_layers * batch_size * context_length * (56/3 * d_model + 2 * num_heads * context_length) + batch_size * context_length * (d_model + 2 * vocab_size))`
+
+#### Instantiate your answer for a GPT-2 XL-shaped model to get an expression that only depends on the batch_size. What is the maximum batch size you can use and still fit within 80GB memory?
+
