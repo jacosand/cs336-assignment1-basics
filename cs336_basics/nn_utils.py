@@ -1,6 +1,7 @@
 import torch
 from jaxtyping import Float, Int
 from torch import Tensor
+from collections.abc import Iterable
 
 
 def softmax(x: Float[Tensor, '...'], dim: int) -> Float[Tensor, '...']:
@@ -22,3 +23,25 @@ def cross_entropy(
     ).squeeze(-1)
 
     return torch.mean(torch.logsumexp(shifted_logits, dim=-1) - target_logits)
+
+
+def clip_gradients(
+    parameters: Iterable[torch.nn.Parameter],
+    max_l2_norm: float,
+    eps: float = 1e-6,
+) -> None:
+
+    parameters = list(parameters)
+
+    global_norm_squared = 0
+    for param in parameters:
+        if param.grad is None:
+            continue
+        global_norm_squared += torch.sum(param.grad.data ** 2)
+    
+    global_norm = global_norm_squared ** 0.5
+    if global_norm  >= max_l2_norm:
+        for param in parameters:
+            if param.grad is None:
+                continue
+            param.grad.data = param.grad.data * max_l2_norm / (global_norm + eps)

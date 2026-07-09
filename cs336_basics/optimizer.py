@@ -91,7 +91,7 @@ class AdamW(torch.optim.Optimizer):
         return loss
 
 
-def get_lr_cosine_schedule(
+def get_lr_cosine(
     it: int,
     max_learning_rate: float,
     min_learning_rate: float,
