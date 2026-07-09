@@ -248,3 +248,21 @@ This yields a final expression for bytes of memory required as:
 #### Instantiate your answer for a GPT-2 XL-shaped model to get an expression that only depends on the batch_size. What is the maximum batch size you can use and still fit within 80GB memory?
 
 For GPT-2 XL, the amount of memory required is `16356614144 * batch_size + 26168601600` bytes, or `16.36 * batch_size + 26.17` GB.  The maximum batch size that can fit within 80GB memory is 3.
+
+#### How many FLOPs does running one step of AdamW take?
+
+If we consider only matrix multiplies, the backward pass has twice as many matrix multiplies as the forward pass (because we have to take derivatives with respect to each of the two matrices being multiplied).  Thus, overall, we can take the forward pass FLOPs and multiply by 3 to get the total FLOPs (forward + backward) as:
+`6 * context_length * d_model * (vocab_size + num_layers * (4 * d_model + 2 * context_length + 3 * d_ff))`
+for one training example, or
+`6 * batch_size * context_length * d_model * (vocab_size + num_layers * (4 * d_model + 2 * context_length + 3 * d_ff))`
+for a batch of training examples.
+
+Plugging in numbers gives `10,550,309,683,200 * batch_size` FLOPs, or `10.55 * batch_size` trillion FLOPs.
+
+As for the AdamW optimization algorithm itself, if we count `sqrt` as a single FLOP, then the number of FLOPs in the algorithm is roughly `14 * n_parameters` or 22,966,339,200 FLOPs or 22.97 billion FLOPs (discarding operations on single scalars).  This is negligible in comparison to the FLOPs from the forward and backward passes.
+
+#### An NVIDIA H100 GPU has a theoretical peak of 495 teraFLOP/s for `float32` (actually TensorFloat-32, which in reality is `bfloat19`) operations.  Assuming you are able to get 50% MFU, how long would it take to train a GPT-2 XL for 400K steps and a batch size of 1024 on a single H100?
+
+`400000 * 1024 * 10,550,309,683,200 FLOPs / (0.5 * 495 * 10**12 FLOPs / s) / (60*60 s / hour) = 4850 hours`
+
+This assumes all the time is spent on compute, rather than memory transfers, and that we could fit such a large batch size on a single H100 GPU (which we could not).
