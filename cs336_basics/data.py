@@ -15,7 +15,7 @@ def get_batch(
     start_indices = np.random.randint(low = 0, high = len(x) - context_length, size = batch_size)
     range_indices = np.arange(context_length)
     idx = start_indices[:, None] + range_indices[None, :]
-    in_tokens = torch.as_tensor(x[idx], dtype=torch.int32, device=device)
-    out_tokens = torch.as_tensor(x[idx + 1], dtype=torch.int32, device=device)
+    in_tokens = torch.as_tensor(x[idx].astype(np.int32), dtype=torch.long, device=device)
+    out_tokens = torch.as_tensor(x[idx + 1].astype(np.int32), dtype=torch.long, device=device)
 
     return in_tokens, out_tokens
