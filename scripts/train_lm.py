@@ -122,7 +122,7 @@ def main():
         tokens_per_sec = tokens_processed / dt
 
         if step % args.log_every == 0:
-            print(f"step {step:4d} | loss {loss.item():.6f} | dt {dt*1000:.2f}ms | tok/sec {tokens_per_sec:.2f} | lr {lr:.3e}")
+            print(f"step {step:6d} | loss {loss.item():.6f} | dt {dt*1000:.2f}ms | tok/sec {tokens_per_sec:.2f} | lr {lr:.3e}")
         
         if step % args.valid_every == 0 or step == args.num_iterations:
             transformer_lm.eval()
@@ -145,7 +145,7 @@ def main():
             transformer_lm.train()
         
         if step % args.save_every == 0 or step == args.num_iterations:
-            serialization.save_checkpoint(transformer_lm, opt, step, f"{args.save_dir}/model_iter{step}.pt")
+            serialization.save_checkpoint(transformer_lm, opt, step, f"{args.save_dir}/checkpoint_step_{step:06d}.pt")
 
 if __name__ == "__main__":
     main()
