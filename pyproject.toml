@@ -8,13 +8,21 @@ dependencies = [
     "einops>=0.8",      # tensor operations
     "einx>=0.4",        # more general tensor operations
     "jaxtyping>=0.3",   # type hints for pytorch/jax/numpy
-    "numpy>=1.26,<2",
+
+    # Compatibility with older MacOS and newer Linux on Modal
+    "numpy>=1.26,<2; sys_platform == 'darwin'",
+    "numpy>=2.4; sys_platform == 'linux'",
+
     "psutil>=7",
     "pytest>=9.0",
     "pytest-timeout",
     "regex>=2026.3.32", # more powerful regex than the builtin `re` module
     "tiktoken>=0.12.0",
-    "torch==2.2.2",
+
+    # Compatibility with older MacOS and newer Linux on Modal
+    "torch==2.2.2; sys_platform == 'darwin'",
+    "torch~=2.11.0; sys_platform == 'linux'",
+
     "tqdm>=4.67",
     "wandb>=0.25",
     "ty>=0.0.26",
