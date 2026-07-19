@@ -1,4 +1,5 @@
 from typing import Iterable, Iterator
+from pathlib import Path
 import pickle
 import regex as re
 import functools
@@ -35,8 +36,8 @@ class Tokenizer:
     @classmethod
     def from_files(
         cls,
-        vocab_filepath: str,
-        merges_filepath: str,
+        vocab_filepath: str | Path,
+        merges_filepath: str | Path,
         special_tokens: list[str] | None = None
     ):
         with open(vocab_filepath, "rb") as f:

@@ -3,11 +3,17 @@ import pickle
 import time
 import multiprocessing
 
-def main():
+from cs336_basics.modal_utils import DATA_PATH, VOLUME_MOUNTS, app, build_image
 
-    input_file = "data/raw_data/TinyStoriesV2-GPT4-train.txt"
-    vocab_file = "data/tokenizers/tokenizer-tinystories-10000-vocab.pkl"
-    merges_file = "data/tokenizers/tokenizer-tinystories-10000-merges.pkl"
+
+@app.function(image=build_image(), volumes=VOLUME_MOUNTS, cpu=8.0, timeout=60*60)
+def train_bpe_tinystories():
+
+    input_file = DATA_PATH / "raw_data" / "TinyStoriesV2-GPT4-train.txt"
+    vocab_file = DATA_PATH / "tokenizers" / "tokenizer-tinystories-10000-vocab.pkl"
+    merges_file = DATA_PATH / "tokenizers" / "tokenizer-tinystories-10000-merges.pkl"
+
+    vocab_file.parent.mkdir(exist_ok=True, parents=True)
 
     vocab_size = 10_000
     special_tokens = ["<|endoftext|>"]
@@ -31,5 +37,12 @@ def main():
         pickle.dump(merges, f)
 
 
+@app.local_entrypoint()
+def modal_main() -> None:
+    print("Training BPE on TinyStories on Modal")
+    train_bpe_tinystories.remote()
+
+
 if __name__ == "__main__":
-    main()
+    print("Training BPE on TinyStories locally")
+    train_bpe_tinystories.local()

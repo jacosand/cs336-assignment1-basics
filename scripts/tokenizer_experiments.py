@@ -1,11 +1,14 @@
 from cs336_basics.tokenizer import Tokenizer
+from pathlib import Path
 import itertools
 import numpy as np
 import time
 
+from cs336_basics.modal_utils import DATA_PATH, VOLUME_MOUNTS, app, build_image
+
 
 def sample_documents(
-    in_file: str,
+    in_file: str | Path,
     delimiter: str,
     n: int = 10,
 ) -> list[str]:
@@ -49,10 +52,14 @@ def compute_tokenizer_stats(
 
 def tokenize_to_bin(
     tokenizer: Tokenizer,
-    in_file: str,
-    out_file: str,
+    in_file: str | Path,
+    out_file: str | Path,
     chunk_size: int = 1_000_000,
 ):
+    
+    out_file = Path(out_file)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
     with open(in_file, "r") as f, open(out_file, "wb") as g:
         token_iterable = tokenizer.encode_iterable(f)
         while True:
@@ -62,22 +69,23 @@ def tokenize_to_bin(
             g.write(chunk.tobytes())
 
 
-def main():
+@app.function(image=build_image(), volumes=VOLUME_MOUNTS, timeout=60*60)
+def tokenizer_experiments():
 
     tokenizer_tinystories = Tokenizer.from_files(
-        vocab_filepath = "data/tokenizers/tokenizer-tinystories-10000-vocab.pkl",
-        merges_filepath = "data/tokenizers/tokenizer-tinystories-10000-merges.pkl",
+        vocab_filepath = DATA_PATH / "tokenizers" / "tokenizer-tinystories-10000-vocab.pkl",
+        merges_filepath = DATA_PATH / "tokenizers" / "tokenizer-tinystories-10000-merges.pkl",
         special_tokens = ["<|endoftext|>"],
     )
 
     tokenizer_owt = Tokenizer.from_files(
-        vocab_filepath = "data/tokenizers/tokenizer-owt-32000-vocab.pkl",
-        merges_filepath = "data/tokenizers/tokenizer-owt-32000-merges.pkl",
+        vocab_filepath = DATA_PATH / "tokenizers" / "tokenizer-owt-32000-vocab.pkl",
+        merges_filepath = DATA_PATH / "tokenizers" / "tokenizer-owt-32000-merges.pkl",
         special_tokens = ["<|endoftext|>"],
     )
 
-    docs_tinystories = sample_documents("data/raw_data/TinyStoriesV2-GPT4-train.txt", "<|endoftext|>")
-    docs_owt = sample_documents("data/raw_data/owt_train.txt", "<|endoftext|>")
+    docs_tinystories = sample_documents(DATA_PATH / "raw_data" / "TinyStoriesV2-GPT4-train.txt", "<|endoftext|>")
+    docs_owt = sample_documents(DATA_PATH / "raw_data" / "owt_train.txt", "<|endoftext|>")
     
     # Calculate statistics
     compression_ratio_tinystories, throughput_tinystories = compute_tokenizer_stats(tokenizer_tinystories, docs_tinystories)
@@ -95,13 +103,20 @@ def main():
     print(f"Throughput OpenWebText: {throughput_owt:.3f} bytes/second")
 
     # Tokenize TinyStories
-    tokenize_to_bin(tokenizer_tinystories, "data/raw_data/TinyStoriesV2-GPT4-valid.txt", "data/tokens/tokens-tinystories-valid.bin")
-    tokenize_to_bin(tokenizer_tinystories, "data/raw_data/TinyStoriesV2-GPT4-train.txt", "data/tokens/tokens-tinystories-train.bin")
+    tokenize_to_bin(tokenizer_tinystories, DATA_PATH / "raw_data" / "TinyStoriesV2-GPT4-valid.txt", DATA_PATH / "tokens" / "tokens-tinystories-valid.bin")
+    tokenize_to_bin(tokenizer_tinystories, DATA_PATH / "raw_data" / "TinyStoriesV2-GPT4-train.txt", DATA_PATH / "tokens" / "tokens-tinystories-train.bin")
 
     # Tokenize OpenWebText
-    tokenize_to_bin(tokenizer_owt, "data/raw_data/owt_valid.txt", "data/tokens/tokens-owt-valid.bin")
-    tokenize_to_bin(tokenizer_owt, "data/raw_data/owt_train.txt", "data/tokens/tokens-owt-train.bin")
+    tokenize_to_bin(tokenizer_owt, DATA_PATH / "raw_data" / "owt_valid.txt", DATA_PATH / "tokens" / "tokens-owt-valid.bin")
+    tokenize_to_bin(tokenizer_owt, DATA_PATH / "raw_data" / "owt_train.txt", DATA_PATH / "tokens" / "tokens-owt-train.bin")
+
+
+@app.local_entrypoint()
+def modal_main() -> None:
+    print("Running tokenizer on Modal")
+    tokenizer_experiments.remote()
 
 
 if __name__ == "__main__":
-    main()
+    print("Running tokenizer locally")
+    tokenizer_experiments.local()
