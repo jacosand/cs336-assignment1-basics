@@ -3,6 +3,7 @@ import argparse
 import time
 import numpy as np
 import torch
+import wandb
 from cs336_basics import data, model, optimizer, nn_utils, serialization
 
 
@@ -54,6 +55,12 @@ def seed_everything(seed: int) -> None:
 def main():
     args = parse_args()
 
+    run = wandb.init(
+        entity = "jacosand-personal",
+        project = "cs336-assignment1",
+        config=vars(args)
+    )
+
     if torch.cuda.is_available():
         device = torch.device('cuda')
     elif torch.backends.mps.is_available():
@@ -95,6 +102,12 @@ def main():
     
     transformer_lm.train()
 
+    running_steps = 0
+    running_loss = 0.0
+    running_grad_norm = 0.0
+    running_time = 0.0
+    running_tokens_processed = 0
+
     for step in range(start_step, args.num_iterations + 1):
 
         t0 = time.perf_counter()
@@ -112,18 +125,51 @@ def main():
             logits = transformer_lm(x)
             loss = nn_utils.cross_entropy(logits, y)
         loss.backward()
-        nn_utils.clip_gradients(transformer_lm.parameters(), args.max_l2_norm)
+        grad_norm = nn_utils.clip_gradients(transformer_lm.parameters(), args.max_l2_norm)
         opt.step()
         if device.type == "cuda":
             torch.cuda.synchronize()
+        elif device.type == "mps":
+            torch.mps.synchronize()
+
         dt = time.perf_counter() - t0
 
         tokens_processed = args.batch_size * args.context_length
-        tokens_per_sec = tokens_processed / dt
 
-        if step % args.log_every == 0:
-            print(f"step {step:6d} | loss {loss.item():.6f} | dt {dt*1000:.2f}ms | tok/sec {tokens_per_sec:.2f} | lr {lr:.3e}")
-        
+        running_steps += 1
+        running_loss += loss.item()
+        running_time += dt
+        running_tokens_processed += tokens_processed
+        running_grad_norm += grad_norm
+
+        metrics = {}
+
+        if step % args.log_every == 0 or step == args.num_iterations:
+
+            metrics.update({
+                "train/loss": running_loss / running_steps,
+                "train/learning_rate": lr,
+                "train/grad_norm": running_grad_norm / running_steps,
+                "train/tokens_processed": step * tokens_processed,
+                "performance/step_time_sec": running_time / running_steps,
+                "performance/tokens_per_sec": running_tokens_processed / running_time,
+            })
+
+            print(
+                f"step {step:6d} | "
+                f"loss {running_loss / running_steps:.6f} | "
+                f"dt {running_time / running_steps * 1000:.2f}ms | "
+                f"tok/sec {running_tokens_processed / running_time:.2f} | "
+                f"lr {lr:.3e} | "
+                f"grad_norm {running_grad_norm / running_steps:.2f}"
+            )
+
+            running_steps = 0
+            running_loss = 0.0
+            running_grad_norm = 0.0
+            running_time = 0.0
+            running_tokens_processed = 0
+
         if step % args.valid_every == 0 or step == args.num_iterations:
             transformer_lm.eval()
 
@@ -140,12 +186,24 @@ def main():
                         batch_loss = nn_utils.cross_entropy(logits, y)
                     valid_loss += batch_loss.item()
                 valid_loss /= args.num_valid_batches
-                print(f"step {step:4d} | validation loss: {valid_loss:.6f}")
+
+                metrics["valid/loss"] = valid_loss
+
+                print(
+                    f"step {step:4d} | "
+                    f"validation loss: {valid_loss:.6f}"
+                )
             
             transformer_lm.train()
         
+        if metrics:
+            run.log(metrics, step=step)
+
         if step % args.save_every == 0 or step == args.num_iterations:
             serialization.save_checkpoint(transformer_lm, opt, step, f"{args.save_dir}/checkpoint_step_{step:06d}.pt")
+
+    run.finish()
+
 
 if __name__ == "__main__":
     main()

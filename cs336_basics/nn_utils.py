@@ -29,7 +29,7 @@ def clip_gradients(
     parameters: Iterable[torch.nn.Parameter],
     max_l2_norm: float,
     eps: float = 1e-6,
-) -> None:
+) -> float:
 
     parameters = list(parameters)
 
@@ -45,3 +45,5 @@ def clip_gradients(
             if param.grad is None:
                 continue
             param.grad.data = param.grad.data * max_l2_norm / (global_norm + eps)
+    
+    return global_norm.item()
