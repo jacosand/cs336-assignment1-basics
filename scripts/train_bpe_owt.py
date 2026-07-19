@@ -5,9 +5,9 @@ import multiprocessing
 
 def main():
 
-    input_file = "data/owt_train.txt"
-    vocab_file = "artifacts/tokenizer-owt-32000-vocab.pkl"
-    merges_file = "artifacts/tokenizer-owt-32000-merges.pkl"
+    input_file = "data/raw_data/owt_train.txt"
+    vocab_file = "data/tokenizers/tokenizer-owt-32000-vocab.pkl"
+    merges_file = "data/tokenizers/tokenizer-owt-32000-merges.pkl"
 
     vocab_size = 32_000
     special_tokens = ["<|endoftext|>"]

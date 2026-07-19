@@ -5,9 +5,9 @@ import multiprocessing
 
 def main():
 
-    input_file = "data/TinyStoriesV2-GPT4-train.txt"
-    vocab_file = "artifacts/tokenizer-tinystories-10000-vocab.pkl"
-    merges_file = "artifacts/tokenizer-tinystories-10000-merges.pkl"
+    input_file = "data/raw_data/TinyStoriesV2-GPT4-train.txt"
+    vocab_file = "data/tokenizers/tokenizer-tinystories-10000-vocab.pkl"
+    merges_file = "data/tokenizers/tokenizer-tinystories-10000-merges.pkl"
 
     vocab_size = 10_000
     special_tokens = ["<|endoftext|>"]

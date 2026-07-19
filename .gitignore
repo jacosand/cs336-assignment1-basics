@@ -28,7 +28,6 @@ MANIFEST
 
 # Data and Artifacts
 data/
-artifacts/
 wandb/
 
 # PyInstaller

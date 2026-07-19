@@ -65,19 +65,19 @@ def tokenize_to_bin(
 def main():
 
     tokenizer_tinystories = Tokenizer.from_files(
-        vocab_filepath = "artifacts/tokenizer-tinystories-10000-vocab.pkl",
-        merges_filepath = "artifacts/tokenizer-tinystories-10000-merges.pkl",
+        vocab_filepath = "data/tokenizers/tokenizer-tinystories-10000-vocab.pkl",
+        merges_filepath = "data/tokenizers/tokenizer-tinystories-10000-merges.pkl",
         special_tokens = ["<|endoftext|>"],
     )
 
     tokenizer_owt = Tokenizer.from_files(
-        vocab_filepath = "artifacts/tokenizer-owt-32000-vocab.pkl",
-        merges_filepath = "artifacts/tokenizer-owt-32000-merges.pkl",
+        vocab_filepath = "data/tokenizers/tokenizer-owt-32000-vocab.pkl",
+        merges_filepath = "data/tokenizers/tokenizer-owt-32000-merges.pkl",
         special_tokens = ["<|endoftext|>"],
     )
 
-    docs_tinystories = sample_documents("data/TinyStoriesV2-GPT4-train.txt", "<|endoftext|>")
-    docs_owt = sample_documents("data/owt_train.txt", "<|endoftext|>")
+    docs_tinystories = sample_documents("data/raw_data/TinyStoriesV2-GPT4-train.txt", "<|endoftext|>")
+    docs_owt = sample_documents("data/raw_data/owt_train.txt", "<|endoftext|>")
     
     # Calculate statistics
     compression_ratio_tinystories, throughput_tinystories = compute_tokenizer_stats(tokenizer_tinystories, docs_tinystories)
@@ -95,12 +95,12 @@ def main():
     print(f"Throughput OpenWebText: {throughput_owt:.3f} bytes/second")
 
     # Tokenize TinyStories
-    tokenize_to_bin(tokenizer_tinystories, "data/TinyStoriesV2-GPT4-valid.txt", "artifacts/tokens-tinystories-valid.bin")
-    tokenize_to_bin(tokenizer_tinystories, "data/TinyStoriesV2-GPT4-train.txt", "artifacts/tokens-tinystories-train.bin")
+    tokenize_to_bin(tokenizer_tinystories, "data/raw_data/TinyStoriesV2-GPT4-valid.txt", "data/tokens/tokens-tinystories-valid.bin")
+    tokenize_to_bin(tokenizer_tinystories, "data/raw_data/TinyStoriesV2-GPT4-train.txt", "data/tokens/tokens-tinystories-train.bin")
 
     # Tokenize OpenWebText
-    tokenize_to_bin(tokenizer_owt, "data/owt_valid.txt", "artifacts/tokens-owt-valid.bin")
-    tokenize_to_bin(tokenizer_owt, "data/owt_train.txt", "artifacts/tokens-owt-train.bin")
+    tokenize_to_bin(tokenizer_owt, "data/raw_data/owt_valid.txt", "data/tokens/tokens-owt-valid.bin")
+    tokenize_to_bin(tokenizer_owt, "data/raw_data/owt_train.txt", "data/tokens/tokens-owt-train.bin")
 
 
 if __name__ == "__main__":
