@@ -17,15 +17,14 @@ def sample_documents(
     current_document = ""
     with open(in_file, "r") as f:
         for line in f:
-            if delimiter in line:
-                current_document += line.split(delimiter)[0]
+            parts = line.split(delimiter)
+            current_document += parts[0]
+            for part in parts[1:]:
                 documents.append(current_document)
-                current_document = ""
-            else:
-                current_document += line
-            if len(documents) == n:
-                break
-    
+                if len(documents) == n:
+                    return documents
+                current_document = part
+
     return documents
 
 
