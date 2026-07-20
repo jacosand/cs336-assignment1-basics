@@ -68,7 +68,7 @@ def tokenize_to_bin(
             g.write(chunk.tobytes())
 
 
-@app.function(image=build_image(), volumes=VOLUME_MOUNTS, timeout=60*60)
+@app.function(image=build_image(), volumes=VOLUME_MOUNTS, timeout=4*60*60)
 def tokenizer_experiments():
 
     tokenizer_tinystories = Tokenizer.from_files(
