@@ -34,17 +34,17 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     parser.add_argument("--weight-decay", type=float, default=0.01)
     parser.add_argument("--max-learning-rate", type=float, default=3e-4)
     parser.add_argument("--min-learning-rate", type=float, default=3e-5)
-    parser.add_argument("--warmup-iters", type=int, default=100)
-    parser.add_argument("--cosine-cycle-iters", type=int, default=1000)
+    parser.add_argument("--warmup-iters", type=int, default=200)
+    parser.add_argument("--cosine-cycle-iters", type=int, default=10_000)
     parser.add_argument("--max-l2-norm", type=float, default=1.0)
 
     # Training parameters
-    parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--num-iterations", type=int, default=1000)
-    parser.add_argument("--num-valid-batches", type=int, default=20)
+    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--num-iterations", type=int, default=10_000)
+    parser.add_argument("--num-valid-batches", type=int, default=10)
     parser.add_argument("--log-every", type=int, default=10)
-    parser.add_argument("--valid-every", type=int, default=100)
-    parser.add_argument("--save-every", type=int, default=100)
+    parser.add_argument("--valid-every", type=int, default=500)
+    parser.add_argument("--save-every", type=int, default=500)
     parser.add_argument("--seed", type=int, default=336)
 
     return parser.parse_args(args = arglist)
@@ -55,7 +55,7 @@ def seed_everything(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-@app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=60*60)
+@app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=2*60*60)
 def train_lm(*arglist: str) -> None:
 
     args = parse_args(arglist)
