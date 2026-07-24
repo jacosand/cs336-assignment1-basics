@@ -23,6 +23,6 @@ VOLUME_MOUNTS: dict[str | PurePosixPath, modal.Volume | modal.CloudBucketMount] 
 }
 
 
-def secrets(include_huggingface_secret: bool = False) -> list[modal.Secret]:
-    secrets = [modal.Secret.from_dict({"SOME_ENV_VAR": "some-value"}), modal.Secret.from_name("my-secret")]
+def secrets() -> list[modal.Secret]:
+    secrets = [modal.Secret.from_name("wandb-secret")]
     return secrets

@@ -1,13 +1,16 @@
 import os
+import sys
 import argparse
 import time
 import numpy as np
 import torch
 import wandb
+from pathlib import Path
 from cs336_basics import data, model, optimizer, nn_utils, serialization
+from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Train a transformer language model")
 
     # Input/output parameters
@@ -44,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save-every", type=int, default=100)
     parser.add_argument("--seed", type=int, default=336)
 
-    return parser.parse_args()
+    return parser.parse_args(args = arglist)
 
 
 def seed_everything(seed: int) -> None:
@@ -52,8 +55,10 @@ def seed_everything(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-def main():
-    args = parse_args()
+@app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=60*60)
+def train_lm(*arglist: str) -> None:
+
+    args = parse_args(arglist)
 
     run = wandb.init(
         entity = "jacosand-personal",
@@ -93,12 +98,15 @@ def main():
     )
 
     if args.resume_from is not None:
-        start_step = serialization.load_checkpoint(args.resume_from, transformer_lm, opt) + 1
+        resume_from = Path(args.resume_from)
+        start_step = serialization.load_checkpoint(resume_from, transformer_lm, opt) + 1
     else:
         start_step = 1
 
-    train_tokens = np.memmap(args.train_data, dtype=np.uint16, mode="r")
-    valid_tokens = np.memmap(args.valid_data, dtype=np.uint16, mode="r")
+    train_data = Path(args.train_data)
+    valid_data = Path(args.valid_data)
+    train_tokens = np.memmap(train_data, dtype=np.uint16, mode="r")
+    valid_tokens = np.memmap(valid_data, dtype=np.uint16, mode="r")
     
     transformer_lm.train()
 
@@ -200,10 +208,18 @@ def main():
             run.log(metrics, step=step)
 
         if step % args.save_every == 0 or step == args.num_iterations:
-            serialization.save_checkpoint(transformer_lm, opt, step, f"{args.save_dir}/checkpoint_step_{step:06d}.pt")
+            save_dir = Path(args.save_dir)
+            serialization.save_checkpoint(transformer_lm, opt, step, save_dir / f"checkpoint_step_{step:06d}.pt")
 
     run.finish()
 
 
+@app.local_entrypoint()
+def modal_main(*arglist: str) -> None:
+    print("Training LM on Modal")
+    train_lm.remote(*arglist)
+
+
 if __name__ == "__main__":
-    main()
+    print("Training LM locally")
+    train_lm.local(*sys.argv[1:])
