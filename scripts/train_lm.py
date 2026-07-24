@@ -107,7 +107,10 @@ def train_lm(*arglist: str) -> None:
     valid_data = Path(args.valid_data)
     train_tokens = np.memmap(train_data, dtype=np.uint16, mode="r")
     valid_tokens = np.memmap(valid_data, dtype=np.uint16, mode="r")
-    
+
+    if device.type == "cuda":
+        transformer_lm = torch.compile(transformer_lm)
+
     transformer_lm.train()
 
     running_steps = 0
