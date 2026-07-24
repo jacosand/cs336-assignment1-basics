@@ -16,7 +16,6 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     # Input/output parameters
     parser.add_argument("--train-data", type=str, required=True, help="Path to the binary np.uint16 training data")
     parser.add_argument("--valid-data", type=str, required=True, help="Path to the binary np.uint16 validation data")
-    parser.add_argument("--save-dir", type=str, required=True, help="Directory to save model checkpoint files")
     parser.add_argument("--resume-from", type=str, default=None, help="Path to .pt checkpoint to resume from")
 
     # Model arguments
@@ -77,7 +76,8 @@ def train_lm(*arglist: str) -> None:
 
     seed_everything(args.seed)
 
-    os.makedirs(args.save_dir, exist_ok=True)
+    save_dir = Path(f"data/checkpoints/{run.name}-{run.id}")
+    os.makedirs(save_dir, exist_ok=True)
 
     transformer_lm = model.TransformerLM(
         vocab_size = args.vocab_size,
@@ -115,6 +115,8 @@ def train_lm(*arglist: str) -> None:
     running_grad_norm = 0.0
     running_time = 0.0
     running_tokens_processed = 0
+
+    best_valid_loss = float('inf')
 
     for step in range(start_step, args.num_iterations + 1):
 
@@ -201,6 +203,10 @@ def train_lm(*arglist: str) -> None:
                     f"step {step:4d} | "
                     f"validation loss: {valid_loss:.6f}"
                 )
+
+                if valid_loss < best_valid_loss:
+                    best_valid_loss = valid_loss
+                    serialization.save_checkpoint(transformer_lm, opt, step, save_dir / "checkpoint_best.pt")
             
             transformer_lm.train()
         
@@ -208,8 +214,8 @@ def train_lm(*arglist: str) -> None:
             run.log(metrics, step=step)
 
         if step % args.save_every == 0 or step == args.num_iterations:
-            save_dir = Path(args.save_dir)
             serialization.save_checkpoint(transformer_lm, opt, step, save_dir / f"checkpoint_step_{step:06d}.pt")
+            serialization.save_checkpoint(transformer_lm, opt, step, save_dir / "checkpoint_latest.pt")
 
     run.finish()
 
