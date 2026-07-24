@@ -180,7 +180,7 @@ def scaled_dot_product_attention(
     d_k = Q.size(-1)
     att = einsum(Q, K, "... queries d_k, ... keys d_k -> ... queries keys") / d_k ** 0.5
     if mask is not None:
-        att -= torch.where(mask==False, float('inf'), 0)
+        att -= torch.where(~mask, float('inf'), 0)
     att = nn_utils.softmax(att, dim=-1)
     return einsum(att, V, '... queries keys, ... keys d_v -> ... queries d_v')
 
