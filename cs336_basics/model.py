@@ -303,3 +303,42 @@ class TransformerLM(nn.Module):
         x = self.ln_final(x)
         x = self.lm_head(x)
         return x
+
+    @torch.no_grad()
+    def generate(
+        self,
+        x: Int[Tensor, "input_seq_len"],
+        max_new_tokens: int,
+        eot_token: int | None = None,
+        temperature: float = 1,
+        top_p: float = 0.9,
+    ) -> Int[Tensor, "output_seq_len"]:
+
+        if temperature <= 0:
+            raise ValueError("temperature must be positive")
+        
+        if top_p <= 0.0 or top_p > 1.0:
+            raise ValueError("top_p must be in (0, 1]")
+        
+        for _ in range(max_new_tokens):
+
+            context = x[-self.context_length:]
+            
+            logits = self(context)
+            logits = logits[-1, :] / temperature
+            probs = nn_utils.softmax(logits, dim=-1)
+            
+            probs_sorted, token_idx_sorted = torch.sort(probs, dim=-1, descending=True)
+            cum_probs = torch.cumsum(probs_sorted, dim=-1)
+            cum_probs_before = cum_probs - probs_sorted
+            probs_filtered = torch.where(cum_probs_before < top_p, probs_sorted, 0.0)
+            
+            next_idx = torch.multinomial(probs_filtered, num_samples=1)
+            next_token = token_idx_sorted[next_idx]
+
+            x = torch.concat((x, next_token), dim=-1)
+
+            if eot_token != None and next_token.item() == eot_token:
+                break
+            
+        return x
