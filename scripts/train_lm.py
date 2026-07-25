@@ -7,7 +7,7 @@ import torch
 import wandb
 from pathlib import Path
 from cs336_basics import data, model, optimizer, nn_utils, serialization
-from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets
+from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets, DATA_PATH
 
 
 def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.Namespace:
@@ -76,7 +76,7 @@ def train_lm(*arglist: str) -> None:
 
     seed_everything(args.seed)
 
-    save_dir = Path(f"data/checkpoints/{run.name}_{run.id}")
+    save_dir = DATA_PATH / "checkpoints" / f"{run.name}_{run.id}"
     os.makedirs(save_dir, exist_ok=True)
 
     transformer_lm = model.TransformerLM(
@@ -109,7 +109,7 @@ def train_lm(*arglist: str) -> None:
     valid_tokens = np.memmap(valid_data, dtype=np.uint16, mode="r")
 
     if device.type == "cuda":
-        transformer_lm = torch.compile(transformer_lm)
+        transformer_lm.compile()
 
     transformer_lm.train()
 
