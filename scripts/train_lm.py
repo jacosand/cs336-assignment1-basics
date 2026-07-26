@@ -76,7 +76,7 @@ def train_lm(*arglist: str) -> None:
 
     seed_everything(args.seed)
 
-    save_dir = DATA_PATH / "checkpoints" / f"{run.name}_{run.id}"
+    save_dir = DATA_PATH / "checkpoints" / run.id
     os.makedirs(save_dir, exist_ok=True)
 
     transformer_lm = model.TransformerLM(

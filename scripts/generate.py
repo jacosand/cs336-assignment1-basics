@@ -5,7 +5,7 @@ from cs336_basics.modal_utils import DATA_PATH, VOLUME_MOUNTS, app, build_image,
 import wandb
 import torch
 
-DEFAULT_WANDB_RUN = "fq2gme98" # driven-sponge-15
+DEFAULT_WANDB_RUN = "vwfd7ttv" # fiery-microwave-17
 DEFAULT_CHECKPOINT_FILE = "checkpoint_best.pt"
 
 
@@ -53,7 +53,7 @@ def load_wandb_run(
         weight_decay = run.config['weight_decay'],
     )
 
-    step = serialization.load_checkpoint(DATA_PATH / "checkpoints" / f"{run.name}_{run.id}" / checkpoint_file, transformer_run, optimizer_run)
+    serialization.load_checkpoint(DATA_PATH / "checkpoints" / run.id / checkpoint_file, transformer_run, optimizer_run)
 
     if run.config['train_data'] == "data/tokens/tokens-tinystories-train.bin":
         tokenizer_run = tokenizer.Tokenizer.from_files(
