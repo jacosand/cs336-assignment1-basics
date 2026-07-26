@@ -1,6 +1,6 @@
 import sys
 import argparse
-from cs336_basics import tokenizer, model, optimizer, serialization
+from cs336_basics import tokenizer, model, serialization
 from cs336_basics.modal_utils import DATA_PATH, VOLUME_MOUNTS, app, build_image, secrets
 import wandb
 import torch
@@ -20,7 +20,7 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     parser.add_argument("--checkpoint-file", type=str, default=DEFAULT_CHECKPOINT_FILE, help=".pt checkpoint to load")
 
     # Text generation parameters
-    parser.add_argument("--max-tokens", type=int, default=500)
+    parser.add_argument("--max-new-tokens", type=int, default=500)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top-p", type=float, default=0.9)
 
@@ -31,7 +31,7 @@ def load_wandb_run(
     wandb_id: str,
     checkpoint_file: str,
     device = None,
-):
+) -> dict[str, tokenizer.Tokenizer | model.TransformerLM]:
     api = wandb.Api()
     run = api.run(f"jacosand-personal/cs336-assignment1/{wandb_id}")
 
@@ -46,39 +46,31 @@ def load_wandb_run(
         device = device,
     )
 
-    optimizer_run = optimizer.AdamW(
-        transformer_run.parameters(),
-        lr = run.config['max_learning_rate'],
-        betas = (run.config['beta1'], run.config['beta2']),
-        weight_decay = run.config['weight_decay'],
-    )
+    serialization.load_checkpoint(DATA_PATH / "checkpoints" / run.id / checkpoint_file, transformer_run, optimizer=None, device=device)
 
-    serialization.load_checkpoint(DATA_PATH / "checkpoints" / run.id / checkpoint_file, transformer_run, optimizer_run)
-
-    if run.config['train_data'] == "data/tokens/tokens-tinystories-train.bin":
+    if 'tinystories' in run.config['train_data'] and 'tinystories' in run.config['valid_data']:
         tokenizer_run = tokenizer.Tokenizer.from_files(
             vocab_filepath = DATA_PATH / "tokenizers" / "tokenizer-tinystories-10000-vocab.pkl",
             merges_filepath = DATA_PATH / "tokenizers" / "tokenizer-tinystories-10000-merges.pkl",
             special_tokens = ["<|endoftext|>"],
         )
-    elif run.config['train_data'] == "data/tokens/tokens-owt-train.bin":
+    elif 'owt' in run.config['train_data'] and 'owt' in run.config['valid_data']:
         tokenizer_run = tokenizer.Tokenizer.from_files(
             vocab_filepath = DATA_PATH / "tokenizers" / "tokenizer-owt-32000-vocab.pkl",
             merges_filepath = DATA_PATH / "tokenizers" / "tokenizer-owt-32000-merges.pkl",
             special_tokens = ["<|endoftext|>"],
         )
     else:
-        raise ValueError(f"No tokenizer available corresponding to training data {run.config['train_data']}")
+        raise ValueError(f"No tokenizer available corresponding to training data {run.config['train_data']} and validation data {run.config['valid_data']}")
 
     return {
         "model": transformer_run,
-        "optimizer": optimizer_run,
         "tokenizer": tokenizer_run,
     }
 
 
 @app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=10*60)
-def generate(*arglist: str) -> None:
+def generate(*arglist: str) -> str:
 
     args = parse_args(arglist)
 
@@ -93,11 +85,29 @@ def generate(*arglist: str) -> None:
 
     wandb_run = load_wandb_run(args.wandb_id, args.checkpoint_file, device=device)
 
-    tokens = torch.tensor(wandb_run['tokenizer'].encode(args.prompt)).to(device)
+    token_ids = wandb_run['tokenizer'].encode(args.prompt)
+    tokens = torch.tensor(token_ids, device=device)
     eot_token = wandb_run['tokenizer'].encode("<|endoftext|>")[0]
 
     wandb_run['model'].eval()
-    tokens = wandb_run['model'].generate(tokens, args.max_tokens, eot_token=eot_token, temperature=args.temperature, top_p=args.top_p)
+    
+    if device.type == "cuda" and torch.cuda.is_bf16_supported():
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            tokens = wandb_run['model'].generate(
+                tokens,
+                args.max_new_tokens,
+                eot_token=eot_token,
+                temperature=args.temperature,
+                top_p=args.top_p
+            )
+    else:
+        tokens = wandb_run['model'].generate(
+            tokens,
+            args.max_new_tokens,
+            eot_token=eot_token,
+            temperature=args.temperature,
+            top_p=args.top_p
+        )
 
     response = wandb_run['tokenizer'].decode(tokens.tolist())
 
