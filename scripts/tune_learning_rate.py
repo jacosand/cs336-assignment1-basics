@@ -1,8 +1,8 @@
 from cs336_basics import train_utils
 from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets
 
-LEARNING_RATES = [3e-4, 6e-4, 9e-4, 1.2e-3, 2.4e-3, 4.8e-3, 9.6e-3]
-
+LEARNING_RATES_COARSE = [3e-4, 6e-4, 9e-4, 1.2e-3, 2.4e-3, 4.8e-3, 9.6e-3]
+LEARNING_RATES_FINE = [3e-3, 4e-3, 5e-3, 6e-3, 7e-3, 8e-3, 9e-3]
 
 @app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=2*60*60)
 def run_lr_experiment(
@@ -24,4 +24,5 @@ def run_lr_experiment(
 
 @app.local_entrypoint()
 def modal_main() -> None:
-    list(run_lr_experiment.map(LEARNING_RATES))
+    list(run_lr_experiment.map(LEARNING_RATES_COARSE))
+    list(run_lr_experiment.map(LEARNING_RATES_FINE))
