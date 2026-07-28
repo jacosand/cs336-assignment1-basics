@@ -1,4 +1,4 @@
-from scripts import train_lm
+from scripts import train_utils
 from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets
 
 LEARNING_RATES = [3e-4, 6e-4, 9e-4, 1.2e-3]
@@ -8,7 +8,7 @@ LEARNING_RATES = [3e-4, 6e-4, 9e-4, 1.2e-3]
 def run_lr_experiment(
     lr: float,
 ) -> None:
-    args = train_lm.parse_args([
+    args = train_utils.parse_args([
         "--train-data",
         "data/tokens/tokens-tinystories-train.bin",
         "--valid-data",
@@ -19,7 +19,7 @@ def run_lr_experiment(
         str(0.1*lr),
     ])
 
-    train_lm.train(args)
+    train_utils.train(args)
 
 
 @app.local_entrypoint()
