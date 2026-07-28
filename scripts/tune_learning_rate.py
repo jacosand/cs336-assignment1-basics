@@ -1,7 +1,7 @@
 from cs336_basics import train_utils
 from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets
 
-LEARNING_RATES = [3e-4, 6e-4, 9e-4, 1.2e-3]
+LEARNING_RATES = [3e-4, 6e-4, 9e-4, 1.2e-3, 2.4e-3, 4.8e-3, 9.6e-3]
 
 
 @app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=2*60*60)
