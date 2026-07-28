@@ -54,11 +54,7 @@ def seed_everything(seed: int) -> None:
     torch.manual_seed(seed)
 
 
-@app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=2*60*60)
-def train_lm(*arglist: str) -> None:
-
-    args = parse_args(arglist)
-
+def train(args: argparse.Namespace) -> None:
     run = wandb.init(
         entity = "jacosand-personal",
         project = "cs336-assignment1",
@@ -221,6 +217,12 @@ def train_lm(*arglist: str) -> None:
             serialization.save_checkpoint(transformer_lm, opt, step, save_dir / "checkpoint_latest.pt")
 
     run.finish()
+
+
+@app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=2*60*60)
+def train_lm(*arglist: str) -> None:
+    args = parse_args(arglist)
+    train(args)
 
 
 @app.local_entrypoint()
