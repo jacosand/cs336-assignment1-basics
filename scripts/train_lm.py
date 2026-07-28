@@ -1,6 +1,6 @@
 import sys
 from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets
-from scripts import train_utils
+from cs336_basics import train_utils
 
 
 @app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=2*60*60)

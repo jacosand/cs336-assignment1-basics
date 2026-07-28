@@ -1,4 +1,4 @@
-from scripts import train_utils
+from cs336_basics import train_utils
 from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets
 
 LEARNING_RATES = [3e-4, 6e-4, 9e-4, 1.2e-3]
