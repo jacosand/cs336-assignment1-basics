@@ -1,5 +1,6 @@
 import torch
 from jaxtyping import Bool, Float, Int
+from typing import Literal
 from torch import Tensor
 from torch import nn
 from einops import einsum, rearrange
@@ -230,6 +231,7 @@ class TransformerBlock(nn.Module):
         num_heads: int,
         d_ff: int,
         position_encoder: nn.Module | None = None,
+        layer_norm: Literal["pre", "post", "none"] = "pre",
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -239,10 +241,16 @@ class TransformerBlock(nn.Module):
         self.num_heads = num_heads
         self.d_ff = d_ff
         self.position_encoder = position_encoder
+        self.layer_norm = layer_norm
 
-        self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
+        if layer_norm not in {"pre", "post", "none"}:
+            raise ValueError(f"Layer norm type {layer_norm} not supported, must be pre, post, or none.")
+
+        if layer_norm != "none":
+            self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
+            self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
+
         self.attn = CausalMultiheadSelfAttention(d_model, num_heads, position_encoder=position_encoder, device=device, dtype=dtype)
-        self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
         self.ffn = PositionWiseFeedForward(d_model, d_ff, device=device, dtype=dtype)
     
     def forward(
@@ -250,8 +258,15 @@ class TransformerBlock(nn.Module):
         x: Float[Tensor, "... seq_len d_model"],
         token_positions: Int[Tensor, " ... seq_len"] | None = None,
     ) -> Float[Tensor, "... seq_len d_model"]:
-        x = x + self.attn(self.ln1(x), token_positions)
-        x = x + self.ffn(self.ln2(x))
+        if self.layer_norm == "pre":
+            x = x + self.attn(self.ln1(x), token_positions)
+            x = x + self.ffn(self.ln2(x))
+        elif self.layer_norm == "post":
+            x = self.ln1(x + self.attn(x, token_positions))
+            x = self.ln2(x + self.ffn(x))
+        elif self.layer_norm == "none":
+            x = x + self.attn(x, token_positions)
+            x = x + self.ffn(x)
         return x
 
 
@@ -265,6 +280,7 @@ class TransformerLM(nn.Module):
         num_heads: int,
         d_ff: int,
         rope_theta: float | None = None,
+        layer_norm: Literal["pre", "post", "none"] = "pre",
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -277,9 +293,12 @@ class TransformerLM(nn.Module):
         self.num_heads = num_heads
         self.d_ff = d_ff
         self.rope_theta = rope_theta
+        self.layer_norm = layer_norm
 
         assert d_model % num_heads == 0, "num_heads must divide d_model"
 
+        if layer_norm not in {"pre", "post", "none"}:
+            raise ValueError(f"Layer norm type {layer_norm} not supported, must be pre, post, or none.")
         if rope_theta is not None:
             self.position_encoder = RotaryPositionEmbedding(rope_theta, d_model // num_heads, context_length, device=device)
         else:
@@ -287,9 +306,10 @@ class TransformerLM(nn.Module):
 
         self.token_embeddings = Embedding(vocab_size, d_model, device=device, dtype=dtype)
         self.layers = nn.ModuleList(
-            TransformerBlock(d_model, num_heads, d_ff, position_encoder=self.position_encoder, device=device, dtype=dtype) for _ in range(num_layers)
+            TransformerBlock(d_model, num_heads, d_ff, position_encoder=self.position_encoder, layer_norm=layer_norm, device=device, dtype=dtype) for _ in range(num_layers)
         )
-        self.ln_final = RMSNorm(d_model, device=device, dtype=dtype)
+        if layer_norm == "pre":
+            self.ln_final = RMSNorm(d_model, device=device, dtype=dtype)
         self.lm_head = Linear(d_model, vocab_size, device=device, dtype=dtype)
     
     def forward(
@@ -300,7 +320,8 @@ class TransformerLM(nn.Module):
         x = self.token_embeddings(x)
         for layer in self.layers:
             x = layer(x, token_positions)
-        x = self.ln_final(x)
+        if self.layer_norm == "pre":
+            x = self.ln_final(x)
         x = self.lm_head(x)
         return x
 
