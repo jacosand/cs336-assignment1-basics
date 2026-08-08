@@ -5,7 +5,7 @@ from cs336_basics.modal_utils import DATA_PATH, VOLUME_MOUNTS, app, build_image,
 import wandb
 import torch
 
-DEFAULT_WANDB_RUN = "vwfd7ttv" # fiery-microwave-17
+DEFAULT_WANDB_RUN = "3zu6y4mt" # sage-microwave-28
 DEFAULT_CHECKPOINT_FILE = "checkpoint_best.pt"
 
 
@@ -20,7 +20,7 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     parser.add_argument("--checkpoint-file", type=str, default=DEFAULT_CHECKPOINT_FILE, help=".pt checkpoint to load")
 
     # Text generation parameters
-    parser.add_argument("--max-new-tokens", type=int, default=500)
+    parser.add_argument("--max-new-tokens", type=int, default=512)
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top-p", type=float, default=0.9)
 
