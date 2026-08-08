@@ -388,3 +388,36 @@ all over his fur. After that, they all went home and had a fun, less to dance.
 ```
 
 And of course if the top-p value is too low, you also get very similar output on repeated runs.
+
+### `layer_norm_ablation`
+
+#### Remove all of the RMSNorms from your Transformer and train. What happens at the previous optimal learning rate? Can you get stability by using a lower learning rate?
+
+When all `RMSNorm`s are removed (i.e. layer norm is ablated), training blows up at the previous optimal learning rate.  It is possible to achieve stability by using a learning rate equal to 0.1 of the previous learning rate, but this is less effective and leads to higher validation loss at the end of training (1.46270 vs. 1.32434).  The complete learning curves are shown below.
+
+![layer norm ablation validation loss curve](img/layer_norm_ablation.png)
+
+### `pre_norm_ablation`
+
+#### Modify your pre-norm Transformer implementation into a post-norm one. Train with the post-norm model and see what happens.
+
+When pre-norm is replaced with post-norm, training does not blow up but the validation loss at the end of training is higher (1.37201 vs. 1.32434).  The complete learning curves are shown below.
+
+![pre-norm ablation validation loss curve](img/pre_norm_ablation.png)
+
+### `no_pos_emb`
+
+#### Modify your Transformer implementation with RoPE to remove the position embedding information entirely, and see what happens.
+
+When RoPE is removed and there is no position embedding information at all, the validation loss at the end of training is higher (1.39049 vs. 1.32434).  The complete learning curves are shown below.
+
+![rope ablation validation loss curve](img/rope_ablation.png)
+
+### `swiglu_ablation`
+
+#### Modify your Transformer implementation to replace SwiGLU activation with SiLU activation using a comparable total number of parameters, and see what happens.
+
+When SwiGLU is replaced with SiLU but the total number of parameters in the feed-forward network is held approximately constant, there is no major difference in performance visible.  The validation loss at the end of training is comparable (1.32531 vs. 1.32434) and the learning curves are quite similar, as shown below.  The SwiGLU activation very slightly outperforms SiLU and the validation loss decreases slightly faster.
+
+![swiglu ablation validation loss curve](img/swiglu_ablation.png)
+
