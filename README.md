@@ -409,7 +409,7 @@ When pre-norm is replaced with post-norm, training does not blow up but the vali
 
 #### Modify your Transformer implementation with RoPE to remove the position embedding information entirely, and see what happens.
 
-When RoPE is removed and there is no position embedding information at all, the validation loss at the end of training is higher (1.39049 vs. 1.32434).  The complete learning curves are shown below.
+When RoPE is removed and there is no position embedding information at all, the validation loss at the end of training is higher (1.39049 vs. 1.32434).  The complete learning curves are shown below.  The model still learns surprisingly well even without any positional information.
 
 ![rope ablation validation loss curve](img/rope_ablation.png)
 
