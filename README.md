@@ -309,4 +309,30 @@ A plot of these validation loss curves is:
 
 #### (b) Folk wisdom is that the best learning rate is “at the edge of stability.” Investigate how the point at which learning rates diverge is related to your best learning rate.
 
-This folk wisdom appears largely true.  In the coarse sweep, the best learning rate is 4.8e-3, right before the learning rate of 9.6e-3 which diverges.  In the fine learning sweep, the best learning rate is 7e-3, quite close to the learning rate of 9e-3 which oscillates wildly (not shown; above the maximum y-axis value) before slowly starting to settle.
+This folk wisdom appears largely true.  In the coarse sweep, the best learning rate is 4.8e-3, right before the learning rate of 9.6e-3 which diverges.  In the fine learning sweep, the best learning rate is 5e-3, reasonably close to the learning rate of 9e-3 which oscillates wildly (not shown; above the maximum y-axis value) before slowly starting to settle.
+
+### `batch_size_experiment`
+
+#### Vary your batch size all the way from 1 to the GPU memory limit. Try at least a few batch sizes in between, including typical sizes like 64 and 128.
+
+The GPU memory limit is a `batch_size` of 1024.  Here are results from the runs with different batch sizes, along with their tuned optimal `max_learning_rate`, where the total tokens processed is held constant.
+
+| `batch_size` | optimal `max_learning_rate` | `validation_loss` |
+| -------- | -------- | -------- |
+| `1` | `4e-4` | `1.62584` |
+| `8` | `1e-3` | `1.52923` |
+| `64` | `1e-3` | `1.57817` |
+| `128` | `4e-3` | `1.56402` |
+| `1024` | `4e-3` | `2.3437` |
+
+A plot of validation loss vs. tokens processed is:
+
+![batch size hyperparameter sweep validation loss vs. tokens processed](img/batch_size_loss_vs_tokens.png)
+
+We see that a `batch_size` of 1024 is simply too large; there are too few gradient updates to make optimal use of the tokens.  A `batch_size` of 1 is too small; the parameter updates may simply be too noisy.  For this model, the sweet spot for best performance given a fixed training token budget is a batch size of 8.
+
+We can also look at validation loss vs. wall clock time:
+
+![batch size hyperparameter sweep validation loss vs. wall time](img/batch_size_loss_vs_time.png)
+
+Here we see that batch sizes of 64 and 128 offer the best performance vs. wall time, since they balance keeping the GPU occupied with matrix multiplications while allowing frequent enough parameter updates.  (In particular, a batch size of 1 makes really poor use of the GPU.)
