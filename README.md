@@ -213,7 +213,7 @@ As the learning rate increases from `1e0` to `1e1` to `1e2`, the loss decays fas
 
 ### `adamw_accounting`
 
-#### How much peak memory does running AdamW require? Decompose your answer based on the memory usage of the parameters, activations, gradients, and optimizer state. Express your answer in terms of the batch_size and the model hyperparameters (vocab_size, context_length, num_layers, d_model, num_heads). Assume d_ff = 8/3 x d_model.
+#### (a) How much peak memory does running AdamW require? Decompose your answer based on the memory usage of the parameters, activations, gradients, and optimizer state. Express your answer in terms of the batch_size and the model hyperparameters (vocab_size, context_length, num_layers, d_model, num_heads). Assume d_ff = 8/3 x d_model.
 
 We already found that the number of trainable parameters is `d_model * (2 * vocab_size + 1) + num_layers * d_model * (4 * d_model + 3 * d_ff + 2)`.
 
@@ -245,11 +245,11 @@ The number of stored gradients is equal to the number of trainable parameters, a
 This yields a final expression for bytes of memory required as:
 `16 * (d_model * (2 * vocab_size + 1) + num_layers * d_model * (12 * d_model + 2)) + 4 * (num_layers * batch_size * context_length * (56/3 * d_model + 2 * num_heads * context_length) + batch_size * context_length * (d_model + 2 * vocab_size))`
 
-#### Instantiate your answer for a GPT-2 XL-shaped model to get an expression that only depends on the batch_size. What is the maximum batch size you can use and still fit within 80GB memory?
+#### (b) Instantiate your answer for a GPT-2 XL-shaped model to get an expression that only depends on the batch_size. What is the maximum batch size you can use and still fit within 80GB memory?
 
 For GPT-2 XL, the amount of memory required is `16356614144 * batch_size + 26168601600` bytes, or `16.36 * batch_size + 26.17` GB.  The maximum batch size that can fit within 80GB memory is 3.
 
-#### How many FLOPs does running one step of AdamW take?
+#### (c) How many FLOPs does running one step of AdamW take?
 
 If we consider only matrix multiplies, the backward pass has twice as many matrix multiplies as the forward pass (because we have to take derivatives with respect to each of the two matrices being multiplied).  Thus, overall, we can take the forward pass FLOPs and multiply by 3 to get the total FLOPs (forward + backward) as:
 `6 * context_length * d_model * (vocab_size + num_layers * (4 * d_model + 2 * context_length + 3 * d_ff))`
@@ -261,8 +261,52 @@ Plugging in numbers gives `10,550,309,683,200 * batch_size` FLOPs, or `10.55 * b
 
 As for the AdamW optimization algorithm itself, if we count `sqrt` as a single FLOP, then the number of FLOPs in the algorithm is roughly `14 * n_parameters` or 22,966,339,200 FLOPs or 22.97 billion FLOPs (discarding operations on single scalars).  This is negligible in comparison to the FLOPs from the forward and backward passes.
 
-#### An NVIDIA H100 GPU has a theoretical peak of 495 teraFLOP/s for `float32` (actually TensorFloat-32, which in reality is `bfloat19`) operations.  Assuming you are able to get 50% MFU, how long would it take to train a GPT-2 XL for 400K steps and a batch size of 1024 on a single H100?
+#### (d) An NVIDIA H100 GPU has a theoretical peak of 495 teraFLOP/s for `float32` (actually TensorFloat-32, which in reality is `bfloat19`) operations.  Assuming you are able to get 50% MFU, how long would it take to train a GPT-2 XL for 400K steps and a batch size of 1024 on a single H100?
 
 `400000 * 1024 * 10,550,309,683,200 FLOPs / (0.5 * 495 * 10**12 FLOPs / s) / (60*60 s / hour) = 4850 hours`
 
 This assumes all the time is spent on compute, rather than memory transfers, and that we could fit such a large batch size on a single H100 GPU (which we could not).
+
+### `learning_rate`
+
+#### (a) Perform a hyperparameter sweep over the learning rates and report the final losses (or note divergence if the optimizer diverges).
+
+The results of a coarse hyperparameter sweep over the learning rates yields (note that the `min_learning_rate` is always 0.1 times the `max_learning_rate`):
+
+| `max_learning_rate` | `validation_loss` |
+| -------- | -------- |
+| `3e-4` | `1.50028` |
+| `6e-4` | `1.41329` |
+| `9e-4` | `1.37949` |
+| `1.2e-3` | `1.36130` |
+| `2.4e-3` | `1.33250` |
+| `4.8e-3` | `1.32292` |
+| `9.6e-3` | `NaN` |
+
+Note that the largest `max_learning_rate` of 9.6e-3 diverges.
+
+A plot of the validation loss curves is:
+
+![learning rates coarse hyperparameter sweep](img/learning_rate_coarse.png)
+
+The results of a finer hyperparamter sweep over the learning rates yields (again the `min_learning_rate` is always 0.1 times the `max_learning_rate`):
+
+| `max_learning_rate` | `validation_loss` |
+| -------- | -------- |
+| `3e-3` | `1.32792` |
+| `4e-3` | `1.32385` |
+| `5e-3` | `1.32353` |
+| `6e-3` | `1.32693` |
+| `7e-3` | `1.33223` |
+| `8e-3` | `1.33711` |
+| `9e-3` | `1.65230` |
+
+The largest `max_learning_rate` of 9e-3 begins to diverge.
+
+A plot of these validation loss curves is:
+
+![learning rates fine hyperparameter sweep](img/learning_rate_fine.png)
+
+#### (b) Folk wisdom is that the best learning rate is “at the edge of stability.” Investigate how the point at which learning rates diverge is related to your best learning rate.
+
+This folk wisdom appears largely true.  In the coarse sweep, the best learning rate is 4.8e-3, right before the learning rate of 9.6e-3 which diverges.  In the fine learning sweep, the best learning rate is 7e-3, quite close to the learning rate of 9e-3 which oscillates wildly (not shown; above the maximum y-axis value) before slowly starting to settle.
