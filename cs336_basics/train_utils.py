@@ -25,8 +25,9 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     parser.add_argument("--num-heads", type=int, default=16)
     parser.add_argument("--d-ff", type=int, default=1344)
     parser.add_argument("--position-encoding", type=str, choices=["rope", "none"], default="rope")
-    parser.add_argument("--rope-theta", type=int, default=10_000)
+    parser.add_argument("--rope-theta", type=float, default=10_000)
     parser.add_argument("--layer-norm", type=str, choices=["pre", "post", "none"], default="pre")
+    parser.add_argument("--activation", type=str, choices=["swiglu", "silu"], default="swiglu")
 
     # Optimizer arguments
     parser.add_argument("--beta1", type=float, default=0.9)
@@ -83,7 +84,10 @@ def train(args: argparse.Namespace) -> None:
         num_layers = args.num_layers,
         num_heads = args.num_heads,
         d_ff = args.d_ff,
+        position_encoding = args.position_encoding,
         rope_theta = args.rope_theta,
+        layer_norm = args.layer_norm,
+        activation = args.activation,
         device = device,
     )
 

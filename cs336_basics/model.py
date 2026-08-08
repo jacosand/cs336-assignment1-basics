@@ -99,6 +99,7 @@ class PositionWiseFeedForward(nn.Module):
         self,
         d_model: int,
         d_ff: int,
+        activation: Literal["swiglu", "silu"] = "swiglu",
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -106,17 +107,25 @@ class PositionWiseFeedForward(nn.Module):
 
         self.d_model = d_model
         self.d_ff = d_ff
+        self.activation = activation
+
+        if activation not in {"swiglu", "silu"}:
+            raise ValueError(f"Activation function {activation} not supported, must be swiglu or silu.")
 
         self.w1 = Linear(d_model, d_ff, device=device, dtype=dtype)
         self.w2 = Linear(d_ff, d_model, device=device, dtype=dtype)
-        self.w3 = Linear(d_model, d_ff, device=device, dtype=dtype)
+        if activation == "swiglu":
+            self.w3 = Linear(d_model, d_ff, device=device, dtype=dtype)
     
     def forward(
         self,
         x: Float[Tensor, "... d_model"]
     ) -> Float[Tensor, "... d_model"]:
         
-        hidden = silu(self.w1(x)) * self.w3(x)
+        if self.activation == "swiglu":
+            hidden = silu(self.w1(x)) * self.w3(x)
+        elif self.activation == "silu":
+            hidden = silu(self.w1(x))
         return self.w2(hidden)
 
 
@@ -232,6 +241,7 @@ class TransformerBlock(nn.Module):
         d_ff: int,
         position_encoder: nn.Module | None = None,
         layer_norm: Literal["pre", "post", "none"] = "pre",
+        activation: Literal["swiglu", "silu"] = "swiglu",
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -242,16 +252,20 @@ class TransformerBlock(nn.Module):
         self.d_ff = d_ff
         self.position_encoder = position_encoder
         self.layer_norm = layer_norm
+        self.activation = activation
 
         if layer_norm not in {"pre", "post", "none"}:
             raise ValueError(f"Layer norm type {layer_norm} not supported, must be pre, post, or none.")
+
+        if activation not in {"swiglu", "silu"}:
+            raise ValueError(f"Activation function {activation} not supported, must be swiglu or silu.")
 
         if layer_norm != "none":
             self.ln1 = RMSNorm(d_model, device=device, dtype=dtype)
             self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
 
         self.attn = CausalMultiheadSelfAttention(d_model, num_heads, position_encoder=position_encoder, device=device, dtype=dtype)
-        self.ffn = PositionWiseFeedForward(d_model, d_ff, device=device, dtype=dtype)
+        self.ffn = PositionWiseFeedForward(d_model, d_ff, activation = activation, device=device, dtype=dtype)
     
     def forward(
         self,
@@ -282,6 +296,7 @@ class TransformerLM(nn.Module):
         position_encoding: Literal["rope", "none"] = "rope",
         rope_theta: float = 10_000,
         layer_norm: Literal["pre", "post", "none"] = "pre",
+        activation: Literal["swiglu", "silu"] = "swiglu",
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -296,11 +311,15 @@ class TransformerLM(nn.Module):
         self.rope_theta = rope_theta
         self.layer_norm = layer_norm
         self.position_encoding = position_encoding
+        self.activation = activation
 
         assert d_model % num_heads == 0, "num_heads must divide d_model"
 
         if layer_norm not in {"pre", "post", "none"}:
             raise ValueError(f"Layer norm type {layer_norm} not supported, must be pre, post, or none.")
+
+        if activation not in {"swiglu", "silu"}:
+            raise ValueError(f"Activation function {activation} not supported, must be swiglu or silu.")
 
         if position_encoding not in {"rope", "none"}:
             raise ValueError(f"Position encoding type {position_encoding} not supported, must be rope or none.")
@@ -311,7 +330,7 @@ class TransformerLM(nn.Module):
 
         self.token_embeddings = Embedding(vocab_size, d_model, device=device, dtype=dtype)
         self.layers = nn.ModuleList(
-            TransformerBlock(d_model, num_heads, d_ff, position_encoder=self.position_encoder, layer_norm=layer_norm, device=device, dtype=dtype) for _ in range(num_layers)
+            TransformerBlock(d_model, num_heads, d_ff, position_encoder=self.position_encoder, layer_norm=layer_norm, activation=activation, device=device, dtype=dtype) for _ in range(num_layers)
         )
         if layer_norm == "pre":
             self.ln_final = RMSNorm(d_model, device=device, dtype=dtype)
