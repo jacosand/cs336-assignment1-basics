@@ -24,6 +24,7 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     parser.add_argument("--num-layers", type=int, default=4)
     parser.add_argument("--num-heads", type=int, default=16)
     parser.add_argument("--d-ff", type=int, default=1344)
+    parser.add_argument("--position-encoding", type=str, choices=["rope", "none"], default="rope")
     parser.add_argument("--rope-theta", type=int, default=10_000)
     parser.add_argument("--layer-norm", type=str, choices=["pre", "post", "none"], default="pre")
 

@@ -279,7 +279,8 @@ class TransformerLM(nn.Module):
         num_layers: int,
         num_heads: int,
         d_ff: int,
-        rope_theta: float | None = None,
+        position_encoding: Literal["rope", "none"] = "rope",
+        rope_theta: float = 10_000,
         layer_norm: Literal["pre", "post", "none"] = "pre",
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
@@ -294,12 +295,16 @@ class TransformerLM(nn.Module):
         self.d_ff = d_ff
         self.rope_theta = rope_theta
         self.layer_norm = layer_norm
+        self.position_encoding = position_encoding
 
         assert d_model % num_heads == 0, "num_heads must divide d_model"
 
         if layer_norm not in {"pre", "post", "none"}:
             raise ValueError(f"Layer norm type {layer_norm} not supported, must be pre, post, or none.")
-        if rope_theta is not None:
+
+        if position_encoding not in {"rope", "none"}:
+            raise ValueError(f"Position encoding type {position_encoding} not supported, must be rope or none.")
+        elif position_encoding == "rope":
             self.position_encoder = RotaryPositionEmbedding(rope_theta, d_model // num_heads, context_length, device=device)
         else:
             self.position_encoder = None
