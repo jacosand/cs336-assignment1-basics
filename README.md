@@ -455,3 +455,9 @@ But the BBC said: "We are hard at best to challenge the right of conscience as w
 ```
 
 The output quality is less coherent than the model trained on TinyStories, likely reflecting that OpenWebText is a more varied, realistic, and complex corpus, which is likely to require a larger model and/or a larger compute budget to achieve similar performance.
+
+### `leaderboard`
+
+#### You will train a model under the leaderboard rules above with the goal of minimizing the validation loss of your language model within 0.75 B200-hours.
+
+ANSWER HERE.

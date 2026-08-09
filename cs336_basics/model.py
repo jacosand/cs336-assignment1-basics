@@ -297,6 +297,7 @@ class TransformerLM(nn.Module):
         rope_theta: float = 10_000,
         layer_norm: Literal["pre", "post", "none"] = "pre",
         activation: Literal["swiglu", "silu"] = "swiglu",
+        weight_tying: Literal["yes", "no"] = "no",
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
     ):
@@ -312,6 +313,7 @@ class TransformerLM(nn.Module):
         self.layer_norm = layer_norm
         self.position_encoding = position_encoding
         self.activation = activation
+        self.weight_tying = weight_tying
 
         assert d_model % num_heads == 0, "num_heads must divide d_model"
 
@@ -328,6 +330,9 @@ class TransformerLM(nn.Module):
         else:
             self.position_encoder = None
 
+        if weight_tying not in {"yes", "no"}:
+            raise ValueError(f"Weight tying option {weight_tying} not supported, must be yes or no.")
+
         self.token_embeddings = Embedding(vocab_size, d_model, device=device, dtype=dtype)
         self.layers = nn.ModuleList(
             TransformerBlock(d_model, num_heads, d_ff, position_encoder=self.position_encoder, layer_norm=layer_norm, activation=activation, device=device, dtype=dtype) for _ in range(num_layers)
@@ -335,6 +340,10 @@ class TransformerLM(nn.Module):
         if layer_norm == "pre":
             self.ln_final = RMSNorm(d_model, device=device, dtype=dtype)
         self.lm_head = Linear(d_model, vocab_size, device=device, dtype=dtype)
+
+        if weight_tying == "yes":
+            nn.init.trunc_normal_(self.token_embeddings.weight, mean=0.0, std=0.02, a=-3*0.02, b=3*0.02)
+            self.lm_head.weight = self.token_embeddings.weight
     
     def forward(
         self,

@@ -28,6 +28,7 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     parser.add_argument("--rope-theta", type=float, default=10_000)
     parser.add_argument("--layer-norm", type=str, choices=["pre", "post", "none"], default="pre")
     parser.add_argument("--activation", type=str, choices=["swiglu", "silu"], default="swiglu")
+    parser.add_argument("--weight-tying", type=str, choices=["yes", "no"], default="no")
 
     # Optimizer arguments
     parser.add_argument("--beta1", type=float, default=0.9)
@@ -88,6 +89,7 @@ def train(args: argparse.Namespace) -> None:
         rope_theta = args.rope_theta,
         layer_norm = args.layer_norm,
         activation = args.activation,
+        weight_tying = args.weight_tying,
         device = device,
     )
 

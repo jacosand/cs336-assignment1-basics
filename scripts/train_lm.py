@@ -3,7 +3,7 @@ from cs336_basics.modal_utils import VOLUME_MOUNTS, app, build_image, secrets
 from cs336_basics import train_utils
 
 
-@app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=2*60*60)
+@app.function(image=build_image(), secrets=secrets(), volumes=VOLUME_MOUNTS, gpu="B200", timeout=45*60)
 def train_lm(*arglist: str) -> None:
     args = train_utils.parse_args(arglist)
     train_utils.train(args)
