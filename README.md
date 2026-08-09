@@ -421,3 +421,37 @@ When SwiGLU is replaced with SiLU but the total number of parameters in the feed
 
 ![swiglu ablation validation loss curve](img/swiglu_ablation.png)
 
+### `main_experiment`
+
+#### Train your language model on OpenWebText with the same model architecture and total training iterations as TinyStories. How well does this model do?
+
+With the exact same parameters as TinyStories, the best validation loss is 3.91386, and the full validation loss curve is:
+
+![owt validation loss curve](img/owt_learning_curve.png)
+
+The loss is much higher than on TinyStories (1.32385), for a difference of approximately 2.59.
+
+Some of this difference reflects that OpenWebText has a larger vocabulary size (32000) compared to TinyStories (10000).  In a uniformly random model that assigns equal probability to every token, we would expect a loss of ln(32000) = 10.37349 for OpenWebText and an initial loss of ln(10000) = 9.21034 for TinyStories, so this is a loss difference of 1.16.  The remaining gap likely reflects the fact that OpenWebText is a more realistic and complex corpus, so a more expressive model and/or a larger compute budget is needed to achieve comparable performance.
+
+An example of generated text from OpenWebText is:
+
+```
+President's announcement by the Palace.
+
+As police officer David Petam said at the time, to release the details about the offences, "would have been an act of protest when this thing
+happens", Petah said.
+
+"I'm standing here because it's a threat to peace."
+
+Tanone added: "We've heard it now on Twitter. Please go by the name and stop it."
+
+At the height of Mr Petam's lack of political democracy, it appears he understands his movement's pain will reach its course.
+
+Having heard some tape live broadcast on Britain's democratic rival, the BBC said it believed the government was using the Commons system and its
+national motto to denounce the use of the last 14 years of civil rights in its offices in every state since the fall of the First and British
+First.
+
+But the BBC said: "We are hard at best to challenge the right of conscience as we are not going to fear it."
+```
+
+The output quality is less coherent than the model trained on TinyStories, likely reflecting that OpenWebText is a more varied, realistic, and complex corpus, which is likely to require a larger model and/or a larger compute budget to achieve similar performance.
