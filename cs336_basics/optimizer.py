@@ -106,3 +106,80 @@ def get_lr_cosine(
         return min_learning_rate + 0.5 * (max_learning_rate-min_learning_rate) * (1 + math.cos(cosine_frac * math.pi))
     else:
         return min_learning_rate
+
+
+def newtonschulz5(G, steps=5, eps=1e-7):
+    assert G.ndim == 2
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    X /= (X.norm() + eps)
+    if G.size(0) > G.size(1):
+        X = X.T
+    for _ in range(steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    if G.size(0) > G.size(1):
+        X = X.T
+    return X.to(G.dtype)
+
+
+class Muon(torch.optim.Optimizer):
+
+    def __init__(self,
+        params: Iterable[torch.Tensor],
+        lr: float=1e-3,
+        mu: float=0.9,
+        weight_decay: float=1e-2,
+        eps: float=1e-7,
+    ):
+        if lr < 0:
+            raise ValueError(f"Invalid learning rate: {lr}")
+        if mu <= 0 or mu >= 1:
+            raise ValueError(f"Invalid first moment update hyperparameter: {mu}")
+        if weight_decay < 0:
+            raise ValueError(f"Invalid weight decay rate: {weight_decay}") 
+        if eps <= 0:
+            raise ValueError(f"Invalid stability parameter: {eps}")
+        
+        defaults = {
+            "lr": lr,
+            "mu": mu,
+            "weight_decay": weight_decay,
+            "eps": eps,
+        }
+
+        super().__init__(params, defaults)
+    
+    def step(self, closure: Optional[Callable] = None) -> Optional[torch.Tensor]:
+        loss = None if closure is None else closure()
+
+        for group in self.param_groups:
+
+            lr = group["lr"]
+            mu = group["mu"]
+            weight_decay = group["weight_decay"]
+            eps = group["eps"]
+
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+
+                assert p.ndim == 2
+
+                state = self.state[p]
+                b = state.get("b", torch.zeros_like(p))
+
+                grad = p.grad.data
+
+                b = mu * b + grad
+                o = mu * b + grad
+                o = newtonschulz5(o, eps=eps)
+                o *= max(1, o.size(0)/o.size(1)) ** 0.5
+
+                p.data -= lr * weight_decay * p.data
+                p.data -= lr * o
+
+                state["b"] = b
+
+        return loss
