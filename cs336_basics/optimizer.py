@@ -132,6 +132,7 @@ class Muon(torch.optim.Optimizer):
         mu: float=0.9,
         weight_decay: float=1e-2,
         eps: float=1e-7,
+        split_qkv = False,
     ):
         if lr < 0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -147,6 +148,7 @@ class Muon(torch.optim.Optimizer):
             "mu": mu,
             "weight_decay": weight_decay,
             "eps": eps,
+            "split_qkv": split_qkv,
         }
 
         super().__init__(params, defaults)
@@ -160,6 +162,7 @@ class Muon(torch.optim.Optimizer):
             mu = group["mu"]
             weight_decay = group["weight_decay"]
             eps = group["eps"]
+            split_qkv = group["split_qkv"]
 
             for p in group["params"]:
                 if p.grad is None:
@@ -168,14 +171,33 @@ class Muon(torch.optim.Optimizer):
                 assert p.ndim == 2
 
                 state = self.state[p]
-                b = state.get("b", torch.zeros_like(p))
+                if "b" not in state:
+                    state["b"] = torch.zeros_like(p)
+
+                b = state["b"]
 
                 grad = p.grad.data
 
                 b = mu * b + grad
                 o = mu * b + grad
-                o = newtonschulz5(o, eps=eps)
-                o *= max(1, o.size(0)/o.size(1)) ** 0.5
+
+                if split_qkv:
+                    q, k, v = torch.chunk(o, 3, dim=0)
+
+                    q = newtonschulz5(q, eps=eps)
+                    q *= max(1, q.size(0)/q.size(1)) ** 0.5
+
+                    k = newtonschulz5(k, eps=eps)
+                    k *= max(1, k.size(0)/k.size(1)) ** 0.5
+
+                    v = newtonschulz5(v, eps=eps)
+                    v *= max(1, v.size(0)/v.size(1)) ** 0.5
+
+                    o = torch.cat([q, k, v])
+                
+                else:
+                    o = newtonschulz5(o, eps=eps)
+                    o *= max(1, o.size(0)/o.size(1)) ** 0.5
 
                 p.data -= lr * weight_decay * p.data
                 p.data -= lr * o
