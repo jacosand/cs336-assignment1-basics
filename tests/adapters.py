@@ -410,7 +410,7 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    transformer_lm = model.TransformerLM(vocab_size, context_length, d_model, num_layers, num_heads, d_ff, rope_theta)
+    transformer_lm = model.TransformerLM(vocab_size, context_length, d_model, num_layers, num_heads, d_ff, rope_theta=rope_theta)
     
     state_dict = dict(weights)
     for i in range(num_layers):
@@ -589,7 +589,7 @@ def run_save_checkpoint(
             we've completed.
         out (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialize the model, optimizer, and iteration to.
     """
-    serialization.save_checkpoint(model, optimizer, iteration, out)
+    serialization.save_checkpoint(model, [optimizer], iteration, out)
 
 
 def run_load_checkpoint(
@@ -610,7 +610,7 @@ def run_load_checkpoint(
     Returns:
         int: the previously-serialized number of iterations.
     """
-    return serialization.load_checkpoint(src, model, optimizer)
+    return serialization.load_checkpoint(src, model, [optimizer])
 
 
 def get_tokenizer(
