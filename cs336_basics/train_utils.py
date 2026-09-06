@@ -39,6 +39,10 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     parser.add_argument("--warmup-iters", type=int, default=200)
     parser.add_argument("--cosine-cycle-iters", type=int, default=10_000)
     parser.add_argument("--max-l2-norm", type=float, default=1.0)
+    parser.add_argument("--muon", type=str, choices=["yes", "no"], default="no")
+    parser.add_argument("--muon-max-learning-rate", type=float, default=2e-2)
+    parser.add_argument("--muon-min-learning-rate", type=float, default=2e-3)
+    parser.add_argument("--muon-beta", type=float, default=0.95)
 
     # Training parameters
     parser.add_argument("--batch-size", type=int, default=128)
@@ -93,16 +97,52 @@ def train(args: argparse.Namespace) -> None:
         device = device,
     )
 
-    opt = optimizer.AdamW(
-        transformer_lm.parameters(),
-        lr = args.max_learning_rate,
-        betas = (args.beta1, args.beta2),
-        weight_decay = args.weight_decay,
-    )
+    if args.muon == 'yes': 
+        adam_params = []
+        muon_params = []
+        qkv_params = []
+
+        for name, p in transformer_lm.named_parameters():
+            if 'qkv_proj' in name:
+                qkv_params.append(p)
+            elif 'ln' in name or 'token_embeddings' in name or 'lm_head' in name:
+                adam_params.append(p)
+            else:
+                muon_params.append(p)
+
+        adamw = optimizer.AdamW(
+            adam_params,
+            lr = args.max_learning_rate,
+            betas = (args.beta1, args.beta2),
+            weight_decay = args.weight_decay,
+        )
+
+        muon = optimizer.Muon(
+            [
+                {"params": muon_params, "split_qkv": False},
+                {"params": qkv_params, "split_qkv": True},
+            ],
+            lr = args.muon_max_learning_rate,
+            mu = args.muon_beta,
+            weight_decay = args.weight_decay,
+            split_qkv = False,
+        )
+
+        optimizers = [adamw, muon]
+
+    else:
+        adamw = optimizer.AdamW(
+            transformer_lm.parameters(),
+            lr = args.max_learning_rate,
+            betas = (args.beta1, args.beta2),
+            weight_decay = args.weight_decay,
+        )
+
+        optimizers = [adamw]
 
     if args.resume_from is not None:
         resume_from = Path(args.resume_from)
-        start_step = serialization.load_checkpoint(resume_from, transformer_lm, opt) + 1
+        start_step = serialization.load_checkpoint(resume_from, transformer_lm, optimizers) + 1
     else:
         start_step = 1
 
@@ -127,12 +167,18 @@ def train(args: argparse.Namespace) -> None:
     for step in range(start_step, args.num_iterations + 1):
 
         t0 = time.perf_counter()
-        lr = optimizer.get_lr_cosine(step, args.max_learning_rate, args.min_learning_rate, args.warmup_iters, args.cosine_cycle_iters)
-        for group in opt.param_groups:
-            group["lr"] = lr
+        adamw_lr = optimizer.get_lr_cosine(step, args.max_learning_rate, args.min_learning_rate, args.warmup_iters, args.cosine_cycle_iters)
+        for group in adamw.param_groups:
+            group["lr"] = adamw_lr
+        
+        if args.muon == 'yes':
+            muon_lr = optimizer.get_lr_cosine(step, args.muon_max_learning_rate, args.muon_min_learning_rate, args.warmup_iters, args.cosine_cycle_iters)
+            for group in muon.param_groups:
+                group["lr"] = muon_lr
 
         x, y = data.get_batch(train_tokens, batch_size=args.batch_size, context_length=args.context_length, device=device)
-        opt.zero_grad()
+        for opt in optimizers:
+            opt.zero_grad()
         if device.type == "cuda" and torch.cuda.is_bf16_supported():
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 logits = transformer_lm(x)
@@ -142,7 +188,8 @@ def train(args: argparse.Namespace) -> None:
             loss = nn_utils.cross_entropy(logits, y)
         loss.backward()
         grad_norm = nn_utils.clip_gradients(transformer_lm.parameters(), args.max_l2_norm)
-        opt.step()
+        for opt in optimizers:
+            opt.step()
         if device.type == "cuda":
             torch.cuda.synchronize()
         elif device.type == "mps":
@@ -164,19 +211,32 @@ def train(args: argparse.Namespace) -> None:
 
             metrics.update({
                 "train/loss": running_loss / running_steps,
-                "train/learning_rate": lr,
+                "train/learning_rate": adamw_lr,
                 "train/grad_norm": running_grad_norm / running_steps,
                 "train/tokens_processed": step * tokens_processed,
                 "performance/step_time_sec": running_time / running_steps,
                 "performance/tokens_per_sec": running_tokens_processed / running_time,
             })
 
+            if args.muon == "yes":
+                metrics.update({
+                    "train/muon_learning_rate": muon_lr,
+                })
+
+            if args.muon == "yes":
+                lr_string = (
+                    f"adam_lr {adamw_lr:.3e} | "
+                    f"muon_lr {muon_lr:.3e} | "
+                )
+            else:
+                lr_string = f"adam_lr {adamw_lr:.3e} | "
+
             print(
                 f"step {step:6d} | "
                 f"loss {running_loss / running_steps:.6f} | "
                 f"dt {running_time / running_steps * 1000:.2f}ms | "
                 f"tok/sec {running_tokens_processed / running_time:.2f} | "
-                f"lr {lr:.3e} | "
+                f"{lr_string}"
                 f"grad_norm {running_grad_norm / running_steps:.2f}"
             )
 
@@ -212,7 +272,7 @@ def train(args: argparse.Namespace) -> None:
 
                 if valid_loss < best_valid_loss:
                     best_valid_loss = valid_loss
-                    serialization.save_checkpoint(transformer_lm, opt, step, save_dir / "checkpoint_best.pt")
+                    serialization.save_checkpoint(transformer_lm, optimizers, step, save_dir / "checkpoint_best.pt")
             
             transformer_lm.train()
         
@@ -220,7 +280,7 @@ def train(args: argparse.Namespace) -> None:
             run.log(metrics, step=step)
 
         if step % args.save_every == 0 or step == args.num_iterations:
-            serialization.save_checkpoint(transformer_lm, opt, step, save_dir / f"checkpoint_step_{step:06d}.pt")
-            serialization.save_checkpoint(transformer_lm, opt, step, save_dir / "checkpoint_latest.pt")
+            serialization.save_checkpoint(transformer_lm, optimizers, step, save_dir / f"checkpoint_step_{step:06d}.pt")
+            serialization.save_checkpoint(transformer_lm, optimizers, step, save_dir / "checkpoint_latest.pt")
 
     run.finish()
