@@ -460,7 +460,13 @@ The output quality is less coherent than the model trained on TinyStories, likel
 
 #### You will train a model under the leaderboard rules above with the goal of minimizing the validation loss of your language model within 0.75 B200-hours.
 
-The final model trained on OpenWebText has a validation loss of 3.29174 after training with 0.75 B200-hours.  Here is the validation loss versus time curve.
+The leaderboard training run on OpenWebText is initiated as follows:
+
+```
+uv run modal run --detach scripts/train_lm.py --train-data data/tokens/tokens-owt-train.bin --valid-data data/tokens/tokens-owt-valid.bin --vocab-size 32000 --weight-tying yes --max-learning-rate 0.004 --min-learning-rate 0.0004 --weight-decay 0.02 --context-length 512 --num-layers 12 --num-heads 8 --num-iterations 30000 --save-every 5000 --valid-every 1000 --cosine-cycle-iters 20000 --warmup-iters 500 --muon yes
+```
+
+This final model has a validation loss of 3.29174 after training with 0.75 B200-hours.  Here is the validation loss versus time curve.
 
 ![owt leaderboard validation loss curve](img/leaderboard_learning_curve.png)
 
