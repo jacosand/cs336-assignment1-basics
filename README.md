@@ -460,4 +460,32 @@ The output quality is less coherent than the model trained on TinyStories, likel
 
 #### You will train a model under the leaderboard rules above with the goal of minimizing the validation loss of your language model within 0.75 B200-hours.
 
-ANSWER HERE.
+The final model trained on OpenWebText has a validation loss of 3.29174 after training with 0.75 B200-hours.  Here is the validation loss versus time curve.
+
+![owt leaderboard validation loss curve](img/leaderboard_learning_curve.png)
+
+Key modifications used to decrease the validation loss include:
+- implementing and using the Muon optimizer for the transformer and feed-forward weight matrices
+- weight-tying (using the same weights for the embedding matrix and the language model head matrix)
+- hyperparameter tuning of context length, number of layers, learning rates, and weight decay
+
+Overall, this final model would rank 13 out of 51 submissions (top 26%) if it were placed among the submissions of the Stanford Spring 2026 CS336 class.
+
+Here is an example of text generated from this final model:
+
+```
+President David Mundy, a former supervisor of the Afghan opposition, said they were in touch with the military commander and that they would treat their protectionist troops in a
+friendly environment, because there were clear limits. “People had to be protected,” Mundy said. “The commander might talk to you if you think things are going to get too obvious. He
+was something of a no-brainer.”
+
+He said in a short time frame that he would agree to allow Afghan troops to leave, rather than say war. The decision is not binding. “We can go and talk to them and they will do
+whatever they want and they will say you are not a fighter in this situation,” Mundy said. “It’s not binding. We should never have been watching this situation unfold.”
+
+At the Pentagon, some generals said the change in conflict pressure was essential to prevent potential gains by American forces against a neutral country. It has now passed an
+understanding of the situation, SOURI’s Military Research Center said.
+
+Beret Freedman, commander of the 24th Panzer Division, in a visit to Kabul Tuesday, said the delay by the Afghan government to raise the number of Afghan troops was “the most
+disastrous development
+```
+
+This text is much more coherent and realistic than the earlier model trained on OpenWebText with the same model architecture as for TinyStories.

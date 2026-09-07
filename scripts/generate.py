@@ -5,7 +5,7 @@ from cs336_basics.modal_utils import DATA_PATH, VOLUME_MOUNTS, app, build_image,
 import wandb
 import torch
 
-DEFAULT_WANDB_RUN = "3zu6y4mt" # sage-microwave-28
+DEFAULT_WANDB_RUN = "ki358hnh" # eager-sun-108
 DEFAULT_CHECKPOINT_FILE = "checkpoint_best.pt"
 
 
@@ -46,7 +46,7 @@ def load_wandb_run(
         device = device,
     )
 
-    serialization.load_checkpoint(DATA_PATH / "checkpoints" / run.id / checkpoint_file, transformer_run, optimizer=None, device=device)
+    serialization.load_checkpoint(DATA_PATH / "checkpoints" / run.id / checkpoint_file, transformer_run, optimizers=None, device=device)
 
     if 'tinystories' in run.config['train_data'] and 'tinystories' in run.config['valid_data']:
         tokenizer_run = tokenizer.Tokenizer.from_files(
