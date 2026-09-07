@@ -43,6 +43,7 @@ def parse_args(arglist: tuple[str, ...] | list[str] | None = None) -> argparse.N
     parser.add_argument("--muon-max-learning-rate", type=float, default=2e-2)
     parser.add_argument("--muon-min-learning-rate", type=float, default=2e-3)
     parser.add_argument("--muon-beta", type=float, default=0.95)
+    parser.add_argument("--muon-weight-decay", type=float, default=0.01)
 
     # Training parameters
     parser.add_argument("--batch-size", type=int, default=128)
@@ -124,8 +125,7 @@ def train(args: argparse.Namespace) -> None:
             ],
             lr = args.muon_max_learning_rate,
             mu = args.muon_beta,
-            weight_decay = args.weight_decay,
-            split_qkv = False,
+            weight_decay = args.muon_weight_decay,
         )
 
         optimizers = [adamw, muon]
